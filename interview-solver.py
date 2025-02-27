@@ -13,10 +13,16 @@ from tkinter import messagebox, scrolledtext
 import openai
 import webbrowser
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ===== Configuration =====
-# Replace this with your actual OpenAI API key
-OPENAI_API_KEY = "your_openai_api_key_here"
+# Get API key from environment variable
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if not OPENAI_API_KEY:
+    raise ValueError("OpenAI API key not found in .env file")
 
 # Default paths and settings
 SCREENSHOT_DIR = os.path.join(os.path.expanduser("~"), "InterviewSolver", "screenshots")
