@@ -17,41 +17,56 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+print("Loading environment variables...")
 
 # ===== Configuration =====
 # Get API key from environment variable
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY:
+    print("ERROR: OpenAI API key not found in .env file")
     raise ValueError("OpenAI API key not found in .env file")
+else:
+    print("OpenAI API key loaded successfully")
 
 # Default paths and settings
 SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screenshot")
 DEFAULT_PORT = 8765
-HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.shift, keyboard.KeyCode.from_char('q')}
+# Changed hotkey to avoid system conflicts
+HOTKEY_COMBINATION = {keyboard.Key.alt, keyboard.Key.shift, keyboard.KeyCode.from_char('q')}
+print(f"Using hotkey combination: Alt+Shift+Q")
+print(f"Screenshot directory: {SCREENSHOT_DIR}")
 
 # ===== Initialize OpenAI client =====
 openai.api_key = OPENAI_API_KEY
+print("OpenAI client initialized")
 
 # ===== Helper Functions =====
 def get_local_ip():
     """Get the local IP address of the machine."""
     try:
+        print("Getting local IP address...")
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()
+        print(f"Local IP address: {ip}")
         return ip
-    except Exception:
+    except Exception as e:
+        print(f"Error getting local IP address: {str(e)}")
         return "127.0.0.1"  # Fallback to localhost
 
 def ensure_directory_exists(directory):
     """Ensure that the specified directory exists."""
     if not os.path.exists(directory):
+        print(f"Creating directory: {directory}")
         os.makedirs(directory)
+    else:
+        print(f"Directory already exists: {directory}")
 
 # ===== Screen Capture Functions =====
 def capture_screenshot():
     """Capture a screenshot of the entire primary display."""
+    print("Capturing screenshot...")
     ensure_directory_exists(SCREENSHOT_DIR)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"screenshot_{timestamp}.png"
@@ -60,15 +75,18 @@ def capture_screenshot():
     # Capture the screenshot
     screenshot = ImageGrab.grab()
     screenshot.save(filepath)
+    print(f"Screenshot saved to: {filepath}")
     
     return filepath
 
 # ===== ChatGPT API Functions =====
 def query_chatgpt(prompt):
     """Send a prompt to ChatGPT API and get the response."""
+    print("Querying ChatGPT API...")
     try:
+        print(f"Sending prompt: {prompt[:50]}..." if len(prompt) > 50 else f"Sending prompt: {prompt}")
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are an interview assistant helping with coding problems and technical questions."},
                 {"role": "user", "content": prompt}
@@ -76,8 +94,10 @@ def query_chatgpt(prompt):
             max_tokens=1000,
             temperature=0.7
         )
+        print("ChatGPT API response received")
         return response.choices[0].message.content
     except Exception as e:
+        print(f"ERROR querying ChatGPT API: {str(e)}")
         return f"Error querying ChatGPT API: {str(e)}"
 
 # ===== Hotkey Handler =====
@@ -87,11 +107,13 @@ class HotkeyHandler:
         self.current_keys = set()
         self.listener = None
         self.is_active = False
+        print("HotkeyHandler initialized")
         
     def on_press(self, key):
         """Handle key press events."""
         self.current_keys.add(key)
         if HOTKEY_COMBINATION.issubset(self.current_keys):
+            print("Hotkey combination detected: Alt+Shift+Q")
             self.callback()
             
     def on_release(self, key):
@@ -104,18 +126,22 @@ class HotkeyHandler:
     def start(self):
         """Start the keyboard listener."""
         if not self.is_active:
+            print("Starting keyboard listener...")
             self.listener = keyboard.Listener(
                 on_press=self.on_press,
                 on_release=self.on_release
             )
             self.listener.start()
             self.is_active = True
+            print("Keyboard listener started")
             
     def stop(self):
         """Stop the keyboard listener."""
         if self.is_active and self.listener:
+            print("Stopping keyboard listener...")
             self.listener.stop()
             self.is_active = False
+            print("Keyboard listener stopped")
 
 # ===== Flask Web Server =====
 class CompanionServer:
@@ -128,6 +154,7 @@ class CompanionServer:
             "selected_text": "",
             "chatgpt_response": ""
         }
+        print(f"CompanionServer initialized on port {port}")
         
         # Define Flask routes
         @self.app.route('/')
@@ -146,12 +173,15 @@ class CompanionServer:
             
     def update_content(self, selected_text, chatgpt_response):
         """Update the content to be displayed on the companion screen."""
+        print("Updating companion content...")
         self.latest_data["selected_text"] = selected_text
         self.latest_data["chatgpt_response"] = chatgpt_response
+        print("Companion content updated")
             
     def start(self):
         """Start the Flask server in a separate thread."""
         if not self.is_running:
+            print("Starting companion server...")
             def run_server():
                 # Create templates directory and HTML file
                 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
@@ -205,21 +235,38 @@ class CompanionServer:
                             font-size: 0.8em;
                             text-align: right;
                         }
+                        .instructions {
+                            background-color: #e8f4fc;
+                            padding: 15px;
+                            border-radius: 5px;
+                            margin-bottom: 20px;
+                            border-left: 4px solid #4a90e2;
+                        }
                     </style>
                 </head>
                 <body>
                     <div class="container">
                         <h1>Interview Solver - Companion Mode</h1>
-                        <p>This screen displays the selected text and ChatGPT responses from the main application.</p>
+                        
+                        <div class="instructions">
+                            <h3>How to Use:</h3>
+                            <ol>
+                                <li>Select text from your interview problem or question</li>
+                                <li>Copy the text to clipboard (Ctrl+C)</li>
+                                <li>Press <strong>Alt+Shift+Q</strong> to query ChatGPT</li>
+                                <li>The response will appear below and in the main application</li>
+                            </ol>
+                            <p>This companion window is designed to be visible on a separate screen during your interview.</p>
+                        </div>
                         
                         <div class="panel">
                             <div class="panel-heading">Selected Text</div>
-                            <pre id="selected-text">Waiting for content...</pre>
+                            <pre id="selected-text">Waiting for content... (Select text, copy it, then press Alt+Shift+Q)</pre>
                         </div>
                         
                         <div class="panel">
                             <div class="panel-heading">ChatGPT Response</div>
-                            <div id="chatgpt-response">Waiting for content...</div>
+                            <div id="chatgpt-response">Responses will appear here after using Alt+Shift+Q hotkey...</div>
                         </div>
                         
                         <div class="timestamp" id="timestamp"></div>
@@ -263,23 +310,30 @@ class CompanionServer:
                 with open(os.path.join(templates_dir, "companion.html"), "w") as f:
                     f.write(companion_html)
                 
+                print(f"Starting Flask server on port {self.port}...")
                 self.app.run(host="0.0.0.0", port=self.port, debug=False)
                 
             self.thread = threading.Thread(target=run_server)
             self.thread.daemon = True
             self.thread.start()
             self.is_running = True
+            print(f"Companion server started on port {self.port}")
             
     def stop(self):
         """Stop the Flask server."""
         # Flask doesn't have a clean shutdown mechanism when run in a thread
         # We'll rely on the application exit to terminate the thread
-        self.is_running = False
+        if self.is_running:
+            print("Stopping companion server...")
+            self.is_running = False
+            print("Companion server stopped")
         
     def get_url(self):
         """Get the URL for the companion mode."""
         ip = get_local_ip()
-        return f"http://{ip}:{self.port}"
+        url = f"http://{ip}:{self.port}"
+        print(f"Companion URL: {url}")
+        return url
 
 # ===== Main Application =====
 class InterviewSolverApp:
@@ -293,21 +347,39 @@ class InterviewSolverApp:
         self.companion_server = CompanionServer()
         self.hotkey_handler = HotkeyHandler(self.handle_hotkey)
         
+        print("Initializing UI...")
         # Initialize UI
         self.setup_ui()
         
         # Start the hotkey listener
         self.hotkey_handler.start()
+        print("InterviewSolverApp initialized")
         
     def setup_ui(self):
         """Set up the user interface."""
         # Main frame
-        main_frame = tk.Frame(self.root, padx=20, pady=20)
+        main_frame = tk.Frame(self.root, padx=20, pady=25)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Header
         header_label = tk.Label(main_frame, text="Interview Solver", font=("Arial", 18, "bold"))
         header_label.pack(pady=(0, 20))
+        
+        # Instructions frame
+        instructions_frame = tk.LabelFrame(main_frame, text="Instructions")
+        instructions_frame.pack(fill=tk.X, pady=10)
+        
+        instructions_text = """
+How to use Interview Solver:
+1. Start the Companion Mode to display responses on a separate screen (optional)
+2. Select text from your interview problem or question
+3. Copy the text to clipboard (Ctrl+C)
+4. Press Alt+Shift+Q to query ChatGPT
+5. View the response in the application and companion window (if started)
+        """
+        
+        instructions_label = tk.Label(instructions_frame, text=instructions_text, justify=tk.LEFT, anchor="w")
+        instructions_label.pack(fill=tk.X, padx=10, pady=10)
         
         # Buttons frame
         buttons_frame = tk.Frame(main_frame)
@@ -330,7 +402,7 @@ class InterviewSolverApp:
         url_entry.pack(fill=tk.X, padx=10, pady=10)
         
         # Selected text frame
-        text_frame = tk.LabelFrame(main_frame, text="Selected Text (Ctrl+Shift+Q to query)")
+        text_frame = tk.LabelFrame(main_frame, text="Selected Text (Alt+Shift+Q to query)")
         text_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
         self.selected_text = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, height=6)
@@ -345,7 +417,7 @@ class InterviewSolverApp:
         
         # Status bar
         self.status_var = tk.StringVar()
-        self.status_var.set("Ready")
+        self.status_var.set("Ready - Press Alt+Shift+Q after copying text to query ChatGPT")
         
         status_bar = tk.Label(self.root, textvariable=self.status_var, bd=1, relief=tk.SUNKEN, anchor=tk.W)
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
@@ -360,7 +432,9 @@ class InterviewSolverApp:
             self.status_var.set(f"Screenshot saved to: {filepath}")
             messagebox.showinfo("Screenshot Captured", f"Screenshot saved to:\n{filepath}")
         except Exception as e:
-            self.status_var.set(f"Error capturing screenshot: {str(e)}")
+            error_msg = f"Error capturing screenshot: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            self.status_var.set(error_msg)
             messagebox.showerror("Error", f"Failed to capture screenshot: {str(e)}")
             
     def toggle_companion_mode(self):
@@ -368,6 +442,7 @@ class InterviewSolverApp:
         if not self.companion_server.is_running:
             # Start companion mode
             try:
+                print("Starting companion mode...")
                 self.companion_server.start()
                 url = self.companion_server.get_url()
                 self.url_var.set(url)
@@ -375,26 +450,34 @@ class InterviewSolverApp:
                 self.status_var.set(f"Companion mode started at {url}")
                 
                 # Open the URL in the default browser
+                print(f"Opening URL in browser: {url}")
                 webbrowser.open(url)
             except Exception as e:
-                self.status_var.set(f"Error starting companion mode: {str(e)}")
+                error_msg = f"Error starting companion mode: {str(e)}"
+                print(f"ERROR: {error_msg}")
+                self.status_var.set(error_msg)
                 messagebox.showerror("Error", f"Failed to start companion mode: {str(e)}")
         else:
             # Stop companion mode
             try:
+                print("Stopping companion mode...")
                 self.companion_server.stop()
                 self.url_var.set("Companion mode not started")
                 self.companion_btn.config(text="Start Companion Mode")
                 self.status_var.set("Companion mode stopped")
             except Exception as e:
-                self.status_var.set(f"Error stopping companion mode: {str(e)}")
+                error_msg = f"Error stopping companion mode: {str(e)}"
+                print(f"ERROR: {error_msg}")
+                self.status_var.set(error_msg)
             
     def handle_hotkey(self):
-        """Handle the global hotkey press (Ctrl+Shift+Q)."""
+        """Handle the global hotkey press (Alt+Shift+Q)."""
         # Get the selected text from clipboard
+        print("Hotkey triggered, getting text from clipboard...")
         selected_text = pyperclip.paste()
         
         if selected_text:
+            print(f"Text found in clipboard ({len(selected_text)} characters)")
             # Update the UI
             self.selected_text.delete(1.0, tk.END)
             self.selected_text.insert(tk.END, selected_text)
@@ -413,26 +496,33 @@ class InterviewSolverApp:
                 
                 # Update companion mode if running
                 if self.companion_server.is_running:
+                    print("Updating companion mode with new content")
                     self.companion_server.update_content(selected_text, response)
             except Exception as e:
                 error_msg = f"Error querying ChatGPT: {str(e)}"
+                print(f"ERROR: {error_msg}")
                 self.response_text.delete(1.0, tk.END)
                 self.response_text.insert(tk.END, error_msg)
                 self.status_var.set(error_msg)
         else:
+            print("No text found in clipboard")
             self.status_var.set("No text selected. Copy text to clipboard before using hotkey.")
+            messagebox.showinfo("No Text Selected", "Please select and copy (Ctrl+C) text before using the Alt+Shift+Q hotkey.")
             
     def on_close(self):
         """Handle application close event."""
+        print("Application closing...")
         try:
             self.hotkey_handler.stop()
             self.companion_server.stop()
-        except:
-            pass
+        except Exception as e:
+            print(f"Error during shutdown: {str(e)}")
         self.root.destroy()
+        print("Application closed")
 
 # ===== Main Entry Point =====
 def main():
+    print("Starting Interview Solver application...")
     # Ensure the screenshots directory exists
     ensure_directory_exists(SCREENSHOT_DIR)
     
@@ -442,6 +532,12 @@ def main():
     
     # Set up close handler
     root.protocol("WM_DELETE_WINDOW", app.on_close)
+    
+    # Display startup message
+    print("=" * 50)
+    print("Interview Solver is running")
+    print(f"Hotkey combination: Alt+Shift+Q")
+    print("=" * 50)
     
     # Start the main event loop
     root.mainloop()
