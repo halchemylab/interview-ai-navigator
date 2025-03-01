@@ -9,7 +9,7 @@ from PIL import ImageGrab
 from pynput import keyboard
 from flask import Flask, render_template, jsonify, request
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
+from tkinter import messagebox, scrolledtext
 import openai
 import webbrowser
 from datetime import datetime
@@ -24,15 +24,8 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY:
     raise ValueError("OpenAI API key not found in .env file")
 
-# Available GPT models
-AVAILABLE_MODELS = [
-    "gpt-4o-mini",
-    "gpt-4o",
-    "o3-mini",
-]
-
 # Default paths and settings
-SCREENSHOT_DIR = os.path.join(os.path.expanduser("~"), "InterviewSolver", "screenshots")
+SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screenshot")
 DEFAULT_PORT = 8765
 HOTKEY_COMBINATION = {keyboard.Key.ctrl, keyboard.Key.shift, keyboard.KeyCode.from_char('q')}
 
@@ -71,11 +64,11 @@ def capture_screenshot():
     return filepath
 
 # ===== ChatGPT API Functions =====
-def query_chatgpt(prompt, model="gpt-3.5-turbo"):
+def query_chatgpt(prompt):
     """Send a prompt to ChatGPT API and get the response."""
     try:
         response = openai.ChatCompletion.create(
-            model=model,
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are an interview assistant helping with coding problems and technical questions."},
                 {"role": "user", "content": prompt}
@@ -299,7 +292,6 @@ class InterviewSolverApp:
         # Set up components
         self.companion_server = CompanionServer()
         self.hotkey_handler = HotkeyHandler(self.handle_hotkey)
-        self.selected_model = tk.StringVar(value=AVAILABLE_MODELS[0])
         
         # Initialize UI
         self.setup_ui()
@@ -316,16 +308,6 @@ class InterviewSolverApp:
         # Header
         header_label = tk.Label(main_frame, text="Interview Solver", font=("Arial", 18, "bold"))
         header_label.pack(pady=(0, 20))
-        
-        # Model selection frame
-        model_frame = tk.Frame(main_frame)
-        model_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        model_label = tk.Label(model_frame, text="AI Model:")
-        model_label.pack(side=tk.LEFT, padx=(0, 10))
-        
-        model_dropdown = ttk.Combobox(model_frame, textvariable=self.selected_model, values=AVAILABLE_MODELS, state="readonly")
-        model_dropdown.pack(side=tk.LEFT)
         
         # Buttons frame
         buttons_frame = tk.Frame(main_frame)
@@ -420,9 +402,9 @@ class InterviewSolverApp:
             self.status_var.set("Querying ChatGPT...")
             self.root.update()
             
-            # Query ChatGPT with selected model
+            # Query ChatGPT
             try:
-                response = query_chatgpt(selected_text, model=self.selected_model.get())
+                response = query_chatgpt(selected_text)
                 
                 # Update the UI
                 self.response_text.delete(1.0, tk.END)
