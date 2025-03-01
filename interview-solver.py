@@ -5,6 +5,7 @@ from tkinter import ttk
 import pyperclip
 import openai
 from dotenv import load_dotenv
+from flask import Flask, jsonify
 
 # Load API key from .env
 load_dotenv()
@@ -14,6 +15,14 @@ if not OPENAI_API_KEY:
 
 # Initialize OpenAI client
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
+
+# Initialize Flask server
+app = Flask(__name__)
+latest_response = ""
+
+@app.route('/response', methods=['GET'])
+def get_response():
+    return jsonify({"response": latest_response})
 
 class SimpleChatApp(tk.Tk):
     def __init__(self):
@@ -56,6 +65,10 @@ class SimpleChatApp(tk.Tk):
         # Start clipboard monitoring
         self.after(self.polling_rate, self.check_clipboard)
 
+        # Start Flask server in a separate thread
+        server_thread = threading.Thread(target=self.run_server, daemon=True)
+        server_thread.start()
+
     def check_clipboard(self):
         new_text = pyperclip.paste()
         if new_text and new_text != self.last_clipboard:
@@ -74,6 +87,8 @@ class SimpleChatApp(tk.Tk):
         self.clipboard_text.config(state="disabled")
 
     def update_response_display(self, text):
+        global latest_response
+        latest_response = text  # Update global response for Flask server
         self.response_text.config(state="normal")
         self.response_text.delete("1.0", tk.END)
         self.response_text.insert(tk.END, text)
@@ -110,6 +125,9 @@ class SimpleChatApp(tk.Tk):
         else:
             self.toggle_button.config(text="Sending to API")
         print(f"Querying {'enabled' if self.query_enabled else 'paused'}")
+
+    def run_server(self):
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
 def main():
     app = SimpleChatApp()
