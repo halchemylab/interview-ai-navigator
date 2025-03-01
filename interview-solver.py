@@ -60,14 +60,13 @@ class SimpleChatApp(tk.Tk):
         clip_frame.pack(fill=tk.BOTH, padx=10, pady=10)
         
         # ChatGPT response display
-        resp_frame = tk.LabelFrame(self, text="ChatGPT Response")
+        resp_frame = tk.LabelFrame(self, text="Coding Hints")
         self.response_text = tk.Text(resp_frame, height=15, wrap=tk.WORD, state="disabled")
         self.response_text.pack(fill=tk.BOTH, padx=10, pady=10)
         resp_frame.pack(fill=tk.BOTH, padx=10, pady=10, expand=True)
         
         # Query Toggle Button
-        self.toggle_button = tk.Button(self, text="Stat Solving Mode", command=self.toggle_query)
-        
+        self.toggle_button = tk.Button(self, text="Start Solving Mode", command=self.toggle_query)
         
         # Server Toggle Button
         self.server_button = tk.Button(self, text="Start Server for Phone Display", command=self.toggle_server)
@@ -107,7 +106,6 @@ class SimpleChatApp(tk.Tk):
         self.response_text.config(state="disabled")
 
     def query_api(self, prompt):
-        self.after(0, lambda: self.status_label.config(text="Querying ChatGPT API..."))
         model = self.model_var.get()
         messages = [
             {"role": "system", "content": "Provide simple commenting, hints, and code response only."},
@@ -128,7 +126,6 @@ class SimpleChatApp(tk.Tk):
             output = f"Error querying ChatGPT API: {str(e)}"
             print(f"Error: {str(e)}")
             self.after(0, lambda: self.update_response_display(output))
-        self.after(0, lambda: self.status_label.config(text="Response received"))
     
     def toggle_query(self):
         self.query_enabled = not self.query_enabled
@@ -142,9 +139,11 @@ class SimpleChatApp(tk.Tk):
         global server_running, server_thread
         if server_running:
             self.server_label.config(text="Server: Not running")
+            self.server_button.config(text="Start Server for Phone Display")
             server_running = False
         else:
             self.server_label.config(text=f"Server: Running at http://{get_local_ip()}:5000/response")
+            self.server_button.config(text="Stop Server")
             server_running = True
             server_thread = threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5000, "debug": False, "use_reloader": False}, daemon=True)
             server_thread.start()
