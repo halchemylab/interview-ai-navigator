@@ -39,6 +39,7 @@ class SimpleChatApp(tk.Tk):
         super().__init__()
         self.title("Interview AI Navigator")
         self.geometry("400x600")
+        self.attributes('-topmost', True)  # Always on top
         self.last_clipboard = ""
         self.query_enabled = False  # Control querying
         self.server_enabled = False # Server control
