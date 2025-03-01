@@ -37,8 +37,8 @@ def get_response():
 class SimpleChatApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("ChatGPT Auto-Query")
-        self.geometry("800x600")
+        self.title("Interview AI Navigator")
+        self.geometry("400x600")
         self.last_clipboard = ""
         self.query_enabled = False  # Control querying
         self.server_enabled = False # Server control
@@ -47,7 +47,7 @@ class SimpleChatApp(tk.Tk):
         # Model selector
         self.model_var = tk.StringVar(value="gpt-4o-mini")
         model_frame = tk.Frame(self)
-        tk.Label(model_frame, text="Select Model:").pack(side=tk.LEFT, padx=(0, 10))
+        tk.Label(model_frame, text="Select AI Model:").pack(side=tk.LEFT, padx=(0, 10))
         model_selector = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly",
                                       values=["gpt-4o-mini", "gpt-4o", "o1"])
         model_selector.pack(side=tk.LEFT)
@@ -65,12 +65,8 @@ class SimpleChatApp(tk.Tk):
         self.response_text.pack(fill=tk.BOTH, padx=10, pady=10)
         resp_frame.pack(fill=tk.BOTH, padx=10, pady=10, expand=True)
         
-        # Status label
-        self.status_label = tk.Label(self, text="Ready", anchor=tk.W)
-        self.status_label.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
         # Query Toggle Button
-        self.toggle_button = tk.Button(self, text="Resume Querying", command=self.toggle_query)
+        self.toggle_button = tk.Button(self, text="Stat Solving Mode", command=self.toggle_query)
         
         
         # Server Toggle Button
@@ -114,7 +110,7 @@ class SimpleChatApp(tk.Tk):
         self.after(0, lambda: self.status_label.config(text="Querying ChatGPT API..."))
         model = self.model_var.get()
         messages = [
-            {"role": "system", "content": "Provide simple commenting and code response only."},
+            {"role": "system", "content": "Provide simple commenting, hints, and code response only."},
             {"role": "user", "content": prompt}
         ]
         try:
@@ -137,9 +133,9 @@ class SimpleChatApp(tk.Tk):
     def toggle_query(self):
         self.query_enabled = not self.query_enabled
         if self.query_enabled:
-            self.toggle_button.config(text="Pause Solving Mode")
+            self.toggle_button.config(text="Pause Agent Mode")
         else:
-            self.toggle_button.config(text="Start Solving Mode")
+            self.toggle_button.config(text="Start Agent Mode")
         print(f"Querying {'enabled' if self.query_enabled else 'paused'}")
     
     def toggle_server(self):
