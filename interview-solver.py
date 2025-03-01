@@ -63,7 +63,8 @@ class SimpleChatApp(tk.Tk):
             self.update_clipboard_display(new_text)
             print("New clipboard text detected")
             if self.query_enabled:
-                threading.Thread(target=self.query_api, args=(new_text,), daemon=True).start()
+                thread = threading.Thread(target=self.query_api, args=(new_text,), daemon=True)
+                thread.start()
         self.after(self.polling_rate, self.check_clipboard)
 
     def update_clipboard_display(self, text):
@@ -95,28 +96,20 @@ class SimpleChatApp(tk.Tk):
             output = response.choices[0].message.content
             print("API response sent")
             print(f"Response: {output}")
+            self.after(0, lambda: self.update_response_display(output))
         except Exception as e:
             output = f"Error querying ChatGPT API: {str(e)}"
             print(f"Error: {str(e)}")
-        self.after(0, lambda: self.update_response_display(output))
+            self.after(0, lambda: self.update_response_display(output))
         self.after(0, lambda: self.status_label.config(text="Response received"))
     
     def toggle_query(self):
         self.query_enabled = not self.query_enabled
         if self.query_enabled:
-            self.toggle_button.config(text="Pause Querying")
+            self.toggle_button.config(text="Paused")
         else:
-            self.toggle_button.config(text="Resume Querying")
+            self.toggle_button.config(text="Sending to API")
         print(f"Querying {'enabled' if self.query_enabled else 'paused'}")
-    
-    def update_polling_rate(self):
-        try:
-            new_rate = int(self.poll_var.get())
-            if new_rate >= 500:
-                self.polling_rate = new_rate
-                print(f"Polling rate updated to {self.polling_rate}ms")
-        except ValueError:
-            pass
 
 def main():
     app = SimpleChatApp()
