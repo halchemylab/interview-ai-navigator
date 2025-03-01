@@ -11,7 +11,9 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY:
     raise ValueError("OpenAI API key not found in .env file")
-openai.api_key = OPENAI_API_KEY
+
+# Initialize OpenAI client
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 class SimpleChatApp(tk.Tk):
     def __init__(self):
@@ -19,43 +21,50 @@ class SimpleChatApp(tk.Tk):
         self.title("ChatGPT Auto-Query")
         self.geometry("800x600")
         self.last_clipboard = ""
-
-        # Model selector (using officially supported models)
-        self.model_var = tk.StringVar(value="gpt-3.5-turbo")
+        self.query_enabled = False  # Control querying
+        self.polling_rate = 1000  # Default polling rate (ms)
+        
+        # Model selector
+        self.model_var = tk.StringVar(value="gpt-4o-mini")
         model_frame = tk.Frame(self)
         tk.Label(model_frame, text="Select Model:").pack(side=tk.LEFT, padx=(0, 10))
         model_selector = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly",
-                                      values=["gpt-3.5-turbo", "gpt-4"])
+                                      values=["gpt-4o-mini", "gpt-4o", "o1"])
         model_selector.pack(side=tk.LEFT)
         model_frame.pack(pady=10)
-
-        # Clipboard text display (read-only)
+        
+        # Clipboard text display
         clip_frame = tk.LabelFrame(self, text="Clipboard Text")
         self.clipboard_text = tk.Text(clip_frame, height=8, wrap=tk.WORD, state="disabled")
         self.clipboard_text.pack(fill=tk.BOTH, padx=10, pady=10)
         clip_frame.pack(fill=tk.BOTH, padx=10, pady=10)
-
-        # ChatGPT response display (read-only)
+        
+        # ChatGPT response display
         resp_frame = tk.LabelFrame(self, text="ChatGPT Response")
         self.response_text = tk.Text(resp_frame, height=15, wrap=tk.WORD, state="disabled")
         self.response_text.pack(fill=tk.BOTH, padx=10, pady=10)
         resp_frame.pack(fill=tk.BOTH, padx=10, pady=10, expand=True)
-
+        
         # Status label
         self.status_label = tk.Label(self, text="Ready", anchor=tk.W)
         self.status_label.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-        # Start polling the clipboard
-        self.after(1000, self.check_clipboard)
+        
+        # Query Toggle Button
+        self.toggle_button = tk.Button(self, text="Resume Querying", command=self.toggle_query)
+        self.toggle_button.pack(pady=5)
+        
+        # Start clipboard monitoring
+        self.after(self.polling_rate, self.check_clipboard)
 
     def check_clipboard(self):
-        """Poll the clipboard and trigger an API call if new text is detected."""
         new_text = pyperclip.paste()
         if new_text and new_text != self.last_clipboard:
             self.last_clipboard = new_text
             self.update_clipboard_display(new_text)
-            threading.Thread(target=self.query_api, args=(new_text,), daemon=True).start()
-        self.after(1000, self.check_clipboard)
+            print("New clipboard text detected")
+            if self.query_enabled:
+                threading.Thread(target=self.query_api, args=(new_text,), daemon=True).start()
+        self.after(self.polling_rate, self.check_clipboard)
 
     def update_clipboard_display(self, text):
         self.clipboard_text.config(state="normal")
@@ -70,7 +79,6 @@ class SimpleChatApp(tk.Tk):
         self.response_text.config(state="disabled")
 
     def query_api(self, prompt):
-        """Send the clipboard text to the ChatGPT API and update the UI with the response."""
         self.after(0, lambda: self.status_label.config(text="Querying ChatGPT API..."))
         model = self.model_var.get()
         messages = [
@@ -78,17 +86,37 @@ class SimpleChatApp(tk.Tk):
             {"role": "user", "content": prompt}
         ]
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_tokens=1000,
                 temperature=0.7
             )
             output = response.choices[0].message.content
+            print("API response sent")
+            print(f"Response: {output}")
         except Exception as e:
             output = f"Error querying ChatGPT API: {str(e)}"
+            print(f"Error: {str(e)}")
         self.after(0, lambda: self.update_response_display(output))
         self.after(0, lambda: self.status_label.config(text="Response received"))
+    
+    def toggle_query(self):
+        self.query_enabled = not self.query_enabled
+        if self.query_enabled:
+            self.toggle_button.config(text="Pause Querying")
+        else:
+            self.toggle_button.config(text="Resume Querying")
+        print(f"Querying {'enabled' if self.query_enabled else 'paused'}")
+    
+    def update_polling_rate(self):
+        try:
+            new_rate = int(self.poll_var.get())
+            if new_rate >= 500:
+                self.polling_rate = new_rate
+                print(f"Polling rate updated to {self.polling_rate}ms")
+        except ValueError:
+            pass
 
 def main():
     app = SimpleChatApp()
