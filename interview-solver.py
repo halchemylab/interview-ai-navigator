@@ -6,6 +6,7 @@ import pyperclip
 import openai
 from dotenv import load_dotenv
 from flask import Flask, jsonify
+import socket
 
 # Load API key from .env
 load_dotenv()
@@ -19,6 +20,15 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 # Initialize Flask server
 app = Flask(__name__)
 latest_response = ""
+server_thread = None
+server_running = False
+
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    local_ip = s.getsockname()[0]
+    s.close()
+    return local_ip
 
 @app.route('/response', methods=['GET'])
 def get_response():
@@ -31,6 +41,7 @@ class SimpleChatApp(tk.Tk):
         self.geometry("800x600")
         self.last_clipboard = ""
         self.query_enabled = False  # Control querying
+        self.server_enabled = False # Server control
         self.polling_rate = 1000  # Default polling rate (ms)
         
         # Model selector
@@ -60,14 +71,19 @@ class SimpleChatApp(tk.Tk):
         
         # Query Toggle Button
         self.toggle_button = tk.Button(self, text="Resume Querying", command=self.toggle_query)
+        
+        
+        # Server Toggle Button
+        self.server_button = tk.Button(self, text="Start Server for Phone Display", command=self.toggle_server)
+        self.server_button.pack(pady=5)
         self.toggle_button.pack(pady=5)
+        
+        # Server URL Label
+        self.server_label = tk.Label(self, text="Server: Not running", anchor=tk.W)
+        self.server_label.pack(fill=tk.X, padx=10, pady=(0, 10))
         
         # Start clipboard monitoring
         self.after(self.polling_rate, self.check_clipboard)
-
-        # Start Flask server in a separate thread
-        server_thread = threading.Thread(target=self.run_server, daemon=True)
-        server_thread.start()
 
     def check_clipboard(self):
         new_text = pyperclip.paste()
@@ -121,13 +137,21 @@ class SimpleChatApp(tk.Tk):
     def toggle_query(self):
         self.query_enabled = not self.query_enabled
         if self.query_enabled:
-            self.toggle_button.config(text="Paused")
+            self.toggle_button.config(text="Pause Solving Mode")
         else:
-            self.toggle_button.config(text="Sending to API")
+            self.toggle_button.config(text="Start Solving Mode")
         print(f"Querying {'enabled' if self.query_enabled else 'paused'}")
-
-    def run_server(self):
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    
+    def toggle_server(self):
+        global server_running, server_thread
+        if server_running:
+            self.server_label.config(text="Server: Not running")
+            server_running = False
+        else:
+            self.server_label.config(text=f"Server: Running at http://{get_local_ip()}:5000/response")
+            server_running = True
+            server_thread = threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5000, "debug": False, "use_reloader": False}, daemon=True)
+            server_thread.start()
 
 def main():
     app = SimpleChatApp()
