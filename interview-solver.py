@@ -81,8 +81,6 @@ class SimpleChatApp(tk.Tk):
         # Start clipboard monitoring
         self.after(self.polling_rate, self.check_clipboard)
 
-        self.is_loading = False
-
     def check_clipboard(self):
         new_text = pyperclip.paste()
         if new_text and new_text != self.last_clipboard:
@@ -108,48 +106,27 @@ class SimpleChatApp(tk.Tk):
         self.response_text.insert(tk.END, text)
         self.response_text.config(state="disabled")
 
-    def set_loading_state(self, is_loading):
-        self.is_loading = is_loading
-        self.response_text.config(state="normal")
-        if is_loading:
-            self.response_text.delete("1.0", tk.END)
-            self.response_text.insert(tk.END, "Loading...")
-        self.response_text.config(state="disabled")
-        self.update_idletasks()
-
-    def safe_update_response(self, text):
-        def update():
-            self.set_loading_state(False)
-            self.update_response_display(text)
-        # Schedule the update with a small delay
-        self.after(100, update)
-
     def query_api(self, prompt):
-        def api_call():
-            self.after(0, lambda: self.set_loading_state(True))
-            model = self.model_var.get()
-            messages = [
-                {"role": "system", "content": "Provide simple commenting, hints, and code response only."},
-                {"role": "user", "content": prompt}
-            ]
-            try:
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    max_tokens=1000,
-                    temperature=0.7
-                )
-                output = response.choices[0].message.content
-                print("API response sent")
-                print(f"Response: {output}")
-                self.safe_update_response(output)
-            except Exception as e:
-                output = f"Error querying ChatGPT API: {str(e)}"
-                print(f"Error: {str(e)}")
-                self.safe_update_response(output)
-
-        thread = threading.Thread(target=api_call, daemon=True)
-        thread.start()
+        model = self.model_var.get()
+        messages = [
+            {"role": "system", "content": "Provide simple commenting, hints, and code response only."},
+            {"role": "user", "content": prompt}
+        ]
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=1000,
+                temperature=0.7
+            )
+            output = response.choices[0].message.content
+            print("API response sent")
+            print(f"Response: {output}")
+            self.after(0, lambda: self.update_response_display(output))
+        except Exception as e:
+            output = f"Error querying ChatGPT API: {str(e)}"
+            print(f"Error: {str(e)}")
+            self.after(0, lambda: self.update_response_display(output))
     
     def toggle_query(self):
         self.query_enabled = not self.query_enabled
