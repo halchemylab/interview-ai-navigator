@@ -143,10 +143,10 @@ class SimpleChatApp(tk.Tk):
             self.server_button.config(text="Start Server for Phone Display")
             server_running = False
         else:
-            self.server_label.config(text=f"Server: Running at http://{get_local_ip()}:5000/response")
+            self.server_label.config(text=f"Server: Running at http://{get_local_ip()}:5001/response")
             self.server_button.config(text="Stop Server")
             server_running = True
-            server_thread = threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5000, "debug": False, "use_reloader": False}, daemon=True)
+            server_thread = threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5001, "debug": False, "use_reloader": False}, daemon=True)
             server_thread.start()
 
 def main():
