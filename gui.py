@@ -50,9 +50,6 @@ class SimpleChatApp(tk.Tk):
         # --- OpenAI Model ---
         self.model_var = tk.StringVar(value="gpt-4o-mini") # Default model
 
-        # --- Queue for API results (optional but robust) ---
-        # self.result_queue = queue.Queue() # Example if needed later
-
         # --- Build UI ---
         self._create_widgets()
 
@@ -225,8 +222,6 @@ class SimpleChatApp(tk.Tk):
         if self.query_enabled:
             self.toggle_button.config(text="Pause Solving Mode")
             self.update_status("Solving Mode ACTIVE. Monitoring clipboard...")
-            # Optionally trigger a check immediately if desired
-            # self.check_clipboard()
         else:
             self.toggle_button.config(text="Start Agent Mode")
         print(f"Querying {'enabled' if self.query_enabled else 'paused'}")
