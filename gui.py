@@ -169,7 +169,7 @@ class SimpleChatApp(tk.Tk):
 
     def update_response_display(self, text):
         """Updates the response display area and the shared state on the main thread."""
-        global_state.latest_response = text  # Update shared state for Flask
+        global_state.update_response(text)  # Update shared state for Flask
         self.after(0, self.update_text_widget, self.response_text, text)
         self.after(0, self.update_status, "API response received.") # Update status bar via main thread
 

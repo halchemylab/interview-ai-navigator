@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview AI Navigator</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 1.5rem;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: #4CAF50;
+        }
+        #response-area {
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            padding: 15px;
+            white-space: pre-wrap; /* Preserves formatting */
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+            border: 1px solid #333;
+            min-height: 200px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .status {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 10px;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        .dot {
+            height: 8px;
+            width: 8px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .connected { background-color: #4CAF50; box-shadow: 0 0 5px #4CAF50; }
+        .disconnected { background-color: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Navigator</h1>
+        <div id="response-area">Waiting for hints...</div>
+        <div class="status">
+            <span id="status-dot" class="dot disconnected"></span>
+            <span id="status-text">Disconnected</span>
+        </div>
+    </div>
+
+    <script>
+        const responseArea = document.getElementById('response-area');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        // Populate initial state
+        fetch('/response').then(res => res.json()).then(data => {
+             responseArea.textContent = data.response;
+        }).catch(err => console.error(err));
+
+        function connect() {
+            console.log("Connecting to event stream...");
+            const eventSource = new EventSource('/stream');
+
+            eventSource.onopen = function() {
+                statusDot.className = 'dot connected';
+                statusText.textContent = 'Live';
+            };
+
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                responseArea.textContent = data.response;
+            };
+
+            eventSource.onerror = function(err) {
+                console.error("EventSource failed:", err);
+                statusDot.className = 'dot disconnected';
+                statusText.textContent = 'Reconnecting...';
+                eventSource.close();
+                setTimeout(connect, 3000);
+            };
+        }
+
+        connect();
+    </script>
+</body>
+</html>

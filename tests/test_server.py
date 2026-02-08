@@ -11,7 +11,7 @@ def client():
 def test_get_response_default(client):
     """Test response endpoint with default state."""
     # Reset state just in case
-    global_state.latest_response = "No response yet."
+    global_state.update_response("No response yet.")
     
     rv = client.get('/response')
     json_data = rv.get_json()
@@ -21,7 +21,7 @@ def test_get_response_default(client):
 
 def test_get_response_updated(client):
     """Test response endpoint after state update."""
-    global_state.latest_response = "New AI Code Hint"
+    global_state.update_response("New AI Code Hint")
     
     rv = client.get('/response')
     json_data = rv.get_json()
