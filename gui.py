@@ -3,12 +3,11 @@ import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import pyperclip
-import openai
-from dotenv import load_dotenv
 import logging
 from utils import get_local_ip
 from state import global_state
 import server
+from llm_service import LLMService
 
 class SimpleChatApp(tk.Tk):
     def __init__(self):
@@ -17,22 +16,10 @@ class SimpleChatApp(tk.Tk):
         self.geometry("450x700") # Slightly larger
         self.attributes('-topmost', True)  # Always on top
 
-        # --- Load Config ---
-        load_dotenv()
-        self.api_key = os.getenv('OPENAI_API_KEY')
-        if not self.api_key:
-            logging.error("OpenAI API key not found in .env file")
-            messagebox.showerror("Error", "OpenAI API key not found in .env file.\nPlease create a .env file with OPENAI_API_KEY=your_key")
-            # We don't raise error here to allow window to close gracefully if needed, 
-            # but functionality will be broken.
-            self.client = None
-        else:
-            try:
-                self.client = openai.OpenAI(api_key=self.api_key)
-            except Exception as e:
-                logging.exception("Failed to initialize OpenAI client")
-                self.client = None
-                messagebox.showerror("Error", f"Failed to initialize OpenAI client: {e}")
+        # --- Load Service ---
+        self.llm_service = LLMService()
+        if not self.llm_service.api_key:
+             messagebox.showerror("Error", "OpenAI API key not found.\nPlease create a .env file with OPENAI_API_KEY=your_key")
 
         # --- State Variables ---
         self.last_clipboard_content = ""
@@ -176,40 +163,15 @@ class SimpleChatApp(tk.Tk):
 
     def query_api_thread(self, prompt):
         """Runs the OpenAI API call in a separate thread."""
-        if not self.client:
-             self.update_response_display("Error: OpenAI Client not initialized. Check API Key.")
-             return
-
         model = self.model_var.get()
         logging.info(f"Sending query to model: {model}")
-        messages = [
-            {"role": "system", "content": "You are an expert programming assistant. Provide simple commenting, hints, and code response only."},
-            {"role": "user", "content": prompt}
-        ]
+        
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_tokens=1000, # Adjust as needed
-                temperature=0.6 # Slightly lower temp for more focused answers
-            )
-            output = response.choices[0].message.content.strip()
+            output = self.llm_service.query_api(prompt, model)
             logging.info("API response successfully received.")
             # Schedule the GUI update on the main thread
             self.update_response_display(output)
 
-        except openai.APIConnectionError as e:
-            error_msg = f"Connection Error: {e}"
-            logging.error(error_msg)
-            self.update_response_display(f"Error: Could not connect to OpenAI API.\n{e}")
-        except openai.RateLimitError as e:
-            error_msg = f"Rate Limit Error: {e}"
-            logging.error(error_msg)
-            self.update_response_display(f"Error: Rate limit exceeded. Please wait and try again.\n{e}")
-        except openai.AuthenticationError as e:
-             error_msg = f"Authentication Error: {e}"
-             logging.error(error_msg)
-             self.update_response_display(f"Error: Invalid OpenAI API Key.\nCheck your .env file.\n{e}")
         except Exception as e:
             error_msg = f"API Error: {str(e)}"
             logging.exception("An unexpected error occurred during API call") # Log full traceback
