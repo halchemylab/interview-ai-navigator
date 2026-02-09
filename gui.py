@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import pyperclip
 import logging
+from dotenv import load_dotenv, set_key
 from utils import get_local_ip
 from state import global_state
 import server
@@ -19,7 +20,7 @@ class SimpleChatApp(tk.Tk):
         # --- Load Service ---
         self.llm_service = LLMService()
         if not self.llm_service.api_key:
-             messagebox.showerror("Error", "OpenAI API key not found.\nPlease create a .env file with OPENAI_API_KEY=your_key")
+             messagebox.showerror("Error", "OpenAI API key not found.\nPlease create a .env file with OPENAI_API_KEY=your_key or configure it in Settings.")
 
         # --- State Variables ---
         self.last_clipboard_content = ""
@@ -80,6 +81,9 @@ class SimpleChatApp(tk.Tk):
 
         self.server_button = ttk.Button(button_frame, text="Start Phone Server", command=self.toggle_server, width=20)
         self.server_button.pack(side=tk.LEFT, padx=5)
+
+        self.settings_button = ttk.Button(button_frame, text="Settings", command=self.open_settings, width=15)
+        self.settings_button.pack(side=tk.LEFT, padx=5)
         button_frame.pack(pady=5)
 
         # --- Status Bar ---
@@ -220,6 +224,58 @@ class SimpleChatApp(tk.Tk):
                 self.update_status(f"Error starting server: {e}")
                 self.server_running = False # Ensure state is correct
 
+
+    def open_settings(self):
+        """Opens a settings dialog to configure the API key."""
+        settings_window = tk.Toplevel(self)
+        settings_window.title("Settings")
+        settings_window.geometry("400x150")
+        settings_window.attributes('-topmost', True)
+
+        # API Key Label and Entry
+        ttk.Label(settings_window, text="OpenAI API Key:").pack(pady=(10, 5), padx=10, anchor='w')
+        
+        api_key_var = tk.StringVar(value=self.llm_service.api_key if self.llm_service.api_key else "")
+        api_key_entry = ttk.Entry(settings_window, textvariable=api_key_var, width=50, show="*")
+        api_key_entry.pack(pady=5, padx=10)
+
+        # Show/Hide Checkbox
+        show_var = tk.BooleanVar(value=False)
+        def toggle_show():
+            if show_var.get():
+                api_key_entry.config(show="")
+            else:
+                api_key_entry.config(show="*")
+        
+        ttk.Checkbutton(settings_window, text="Show API Key", variable=show_var, command=toggle_show).pack(anchor='w', padx=10)
+
+        # Save Button
+        def save_and_close():
+            new_key = api_key_var.get().strip()
+            if not new_key:
+                messagebox.showerror("Error", "API Key cannot be empty.", parent=settings_window)
+                return
+            
+            try:
+                # Update .env file
+                env_file = ".env"
+                if not os.path.exists(env_file):
+                    with open(env_file, "w") as f:
+                        f.write("") # Create if missing
+                
+                set_key(env_file, "OPENAI_API_KEY", new_key)
+                
+                # Reload service
+                os.environ["OPENAI_API_KEY"] = new_key
+                self.llm_service = LLMService() # Re-initialize
+                
+                messagebox.showinfo("Success", "Settings saved and API key updated!", parent=settings_window)
+                settings_window.destroy()
+            except Exception as e:
+                logging.error(f"Failed to save settings: {e}")
+                messagebox.showerror("Error", f"Failed to save settings: {e}", parent=settings_window)
+
+        ttk.Button(settings_window, text="Save", command=save_and_close).pack(pady=10)
 
     def on_closing(self):
         """Handles the window close event."""
