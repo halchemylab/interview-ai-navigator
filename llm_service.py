@@ -54,19 +54,15 @@ class LLMService:
         except openai.APIConnectionError as e:
             error_msg = f"Connection Error: {e}"
             logging.error(error_msg)
-            return f"Error: Could not connect to OpenAI API.
-{e}"
+            return f"Error: Could not connect to OpenAI API.\n{e}"
         except openai.RateLimitError as e:
             error_msg = f"Rate Limit Error: {e}"
             logging.error(error_msg)
-            return f"Error: Rate limit exceeded. Please wait and try again.
-{e}"
+            return f"Error: Rate limit exceeded. Please wait and try again.\n{e}"
         except openai.AuthenticationError as e:
              error_msg = f"Authentication Error: {e}"
              logging.error(error_msg)
-             return f"Error: Invalid OpenAI API Key.
-Check your .env file.
-{e}"
+             return f"Error: Invalid OpenAI API Key.\nCheck your .env file.\n{e}"
         except Exception as e:
             error_msg = f"API Error: {str(e)}"
             logging.exception("An unexpected error occurred during API call")
