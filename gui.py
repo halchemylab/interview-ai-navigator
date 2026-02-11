@@ -21,7 +21,8 @@ class SimpleChatApp(tk.Tk):
         self.controller = InterviewController(
             update_callback=lambda text: self.after(0, self.update_response_display, text),
             clipboard_callback=lambda text: self.after(0, self.update_clipboard_display, text),
-            status_callback=lambda text: self.after(0, self.update_status, text)
+            status_callback=lambda text: self.after(0, self.update_status, text),
+            monitoring_status_callback=lambda status, color: self.after(0, self.update_monitoring_indicator, status, color)
         )
         
         if not self.controller.llm_service.api_key:
@@ -35,9 +36,7 @@ class SimpleChatApp(tk.Tk):
 
         # --- Start Processes ---
         self.update_status("Ready. Press 'Start Solving Mode' to begin.")
-        self.controller.start_monitoring()
-
-        # --- Handle Window Closing ---
+        # self.controller.start_monitoring() # Removed from here, it's called in interview-solver.py
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def _create_widgets(self):
@@ -51,7 +50,12 @@ class SimpleChatApp(tk.Tk):
         model_selector = ttk.Combobox(model_frame, textvariable=self.model_var, state="readonly", width=15,
                                       values=["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]) # Added 3.5-turbo
         model_selector.pack(side=tk.LEFT)
+        model_selector.bind("<<ComboboxSelected>>", self.on_model_selected) # Bind event
         model_frame.pack(pady=(0, 10), anchor='w')
+
+        # Monitoring Indicator
+        self.monitoring_indicator = ttk.Label(main_frame, text="Monitoring: Inactive", anchor=tk.W, font=("Segoe UI", 9, "italic"))
+        self.monitoring_indicator.pack(fill=tk.X, pady=(0, 5))
 
         # Clipboard Text Display
         clip_frame = ttk.LabelFrame(main_frame, text="Clipboard Content")
@@ -87,6 +91,17 @@ class SimpleChatApp(tk.Tk):
         self.server_label.pack(fill=tk.X, pady=(5, 0))
 
 
+    def on_model_selected(self, event):
+        """Updates the LLM service model when a new model is selected in the combobox."""
+        selected_model = self.model_var.get()
+        self.controller.llm_service.model = selected_model
+        logging.info(f"AI model set to: {selected_model}")
+        self.update_status(f"AI model set to: {selected_model}")
+
+    def update_monitoring_indicator(self, status, color="black"):
+        """Updates the monitoring indicator label."""
+        self.monitoring_indicator.config(text=f"Monitoring: {status}", foreground=color)
+        
     def update_status(self, message):
         """Updates the status bar text."""
         self.status_bar.config(text=f"Status: {message}")

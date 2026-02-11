@@ -6,11 +6,12 @@ from llm_service import LLMService
 import server
 
 class InterviewController:
-    def __init__(self, update_callback, clipboard_callback, status_callback):
+    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback):
         self.llm_service = LLMService()
         self.update_callback = update_callback        # To update response UI
         self.clipboard_callback = clipboard_callback  # To update clipboard UI
         self.status_callback = status_callback        # To update status bar
+        self.monitoring_status_callback = monitoring_status_callback # To update monitoring indicator
         
         self.last_clipboard_content = ""
         self.query_enabled = False
@@ -30,12 +31,14 @@ class InterviewController:
         self.stop_event.clear()
         self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self.monitor_thread.start()
+        self.monitoring_status_callback("Active", "green") # Initial status
 
     def stop_monitoring(self):
         """Stops the clipboard monitoring thread."""
         self.stop_event.set()
         if self._debounce_timer:
             self._debounce_timer.cancel()
+        self.monitoring_status_callback("Inactive", "red")
 
     def _monitor_loop(self):
         """Background loop to check clipboard."""
@@ -52,6 +55,7 @@ class InterviewController:
                     
                     if self.query_enabled:
                         self.status_callback("Clipboard changed. Debouncing...")
+                        self.monitoring_status_callback("Clipboard detected, processing...", "orange") # Visual feedback
                         self._schedule_query(current_content)
                         
             except Exception as e:
@@ -64,24 +68,34 @@ class InterviewController:
         if self._debounce_timer:
             self._debounce_timer.cancel()
         
-        self._debounce_timer = threading.Timer(self.debounce_ms / 1000.0, self._run_query, [text])
+        self._debounce_timer = threading.Timer(self.debounce_ms / 1000.0, self._run_query, [text, self.llm_service.model]) # Pass the current model
         self._debounce_timer.start()
 
-    def _run_query(self, text, model="gpt-4o-mini"):
+    def _run_query(self, text, model):
         """Executes the API query."""
         self.status_callback("Querying OpenAI API...")
+        self.monitoring_status_callback("Querying AI...", "blue") # Visual feedback
         try:
             output = self.llm_service.query_api(text, model)
             global_state.update_response(output)
             self.update_callback(output)
             self.status_callback("API response received.")
+            if self.query_enabled: # Only go back to active if solving mode is still on
+                self.monitoring_status_callback("Active", "green")
+            else:
+                self.monitoring_status_callback("Paused", "gray")
         except Exception as e:
             logging.exception("Error in query thread")
             self.update_callback(f"Error: {e}")
             self.status_callback("API Error.")
+            self.monitoring_status_callback("Error, monitoring active", "red") # Indicate error but still monitoring
 
     def toggle_solving_mode(self):
         self.query_enabled = not self.query_enabled
+        if self.query_enabled:
+            self.monitoring_status_callback("Active", "green")
+        else:
+            self.monitoring_status_callback("Paused", "gray")
         return self.query_enabled
 
     def toggle_server(self, host="0.0.0.0", port=5000):
