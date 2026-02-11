@@ -6,9 +6,9 @@ import pyperclip
 import logging
 from dotenv import load_dotenv, set_key
 from utils import get_local_ip
-from state import global_state
 import server
 from llm_service import LLMService
+from controller import InterviewController # Import the new controller
 
 class SimpleChatApp(tk.Tk):
     def __init__(self):
@@ -17,23 +17,15 @@ class SimpleChatApp(tk.Tk):
         self.geometry("450x700") # Slightly larger
         self.attributes('-topmost', True)  # Always on top
 
-        # --- Load Service ---
-        self.llm_service = LLMService()
-        if not self.llm_service.api_key:
+        # --- Initialize Controller ---
+        self.controller = InterviewController(
+            update_callback=lambda text: self.after(0, self.update_response_display, text),
+            clipboard_callback=lambda text: self.after(0, self.update_clipboard_display, text),
+            status_callback=lambda text: self.after(0, self.update_status, text)
+        )
+        
+        if not self.controller.llm_service.api_key:
              messagebox.showerror("Error", "OpenAI API key not found.\nPlease create a .env file with OPENAI_API_KEY=your_key or configure it in Settings.")
-
-        # --- State Variables ---
-        self.last_clipboard_content = ""
-        # We use global_state.latest_response for sharing with Flask
-        self.query_enabled = False
-        self.server_running = False
-        self.server_thread = None
-        self.polling_after_id = None # To cancel the polling loop on exit
-        self.api_call_after_id = None # To manage debouncing API calls
-
-        # --- Configuration ---
-        self.polling_rate_ms = 1000  # Check clipboard every second
-        self.debounce_ms = 750     # Wait 750ms after clipboard change before API call
 
         # --- OpenAI Model ---
         self.model_var = tk.StringVar(value="gpt-4o-mini") # Default model
@@ -43,7 +35,7 @@ class SimpleChatApp(tk.Tk):
 
         # --- Start Processes ---
         self.update_status("Ready. Press 'Start Solving Mode' to begin.")
-        self.start_clipboard_monitoring()
+        self.controller.start_monitoring()
 
         # --- Handle Window Closing ---
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -100,52 +92,6 @@ class SimpleChatApp(tk.Tk):
         self.status_bar.config(text=f"Status: {message}")
         logging.info(f"Status: {message}") # Log status updates
 
-    def start_clipboard_monitoring(self):
-        """Initiates the clipboard checking loop."""
-        # Clear any previous loop id
-        if self.polling_after_id:
-            self.after_cancel(self.polling_after_id)
-            self.polling_after_id = None
-
-        self.check_clipboard() # Start the first check
-
-    def check_clipboard(self):
-        """Checks the clipboard for changes and schedules the next check."""
-        try:
-            current_content = pyperclip.paste()
-        except Exception as e: # Catch potential pyperclip errors
-            logging.error(f"Error reading clipboard: {e}")
-            current_content = None # Indicate error or inability to read
-
-        # Process if content is readable and has changed significantly
-        if current_content is not None and current_content != self.last_clipboard_content and len(current_content) > 1 : # Ignore empty/trivial changes
-            self.last_clipboard_content = current_content
-            self.update_clipboard_display(current_content)
-            logging.info("New clipboard content detected.")
-            self.update_status("Clipboard changed. Debouncing...")
-
-            if self.query_enabled:
-                # Cancel previous scheduled API call if it exists (debouncing)
-                if self.api_call_after_id:
-                    self.after_cancel(self.api_call_after_id)
-                    logging.debug("Cancelled previous API call debounce timer.")
-
-                # Schedule the API call after debounce period
-                self.api_call_after_id = self.after(self.debounce_ms, self.schedule_api_query, current_content)
-                logging.debug(f"Scheduled API query in {self.debounce_ms}ms.")
-
-        # Schedule the next check
-        self.polling_after_id = self.after(self.polling_rate_ms, self.check_clipboard)
-
-    def schedule_api_query(self, text_to_query):
-        """Called after debounce; starts the API query in a separate thread."""
-        self.api_call_after_id = None # Clear the timer ID
-        self.update_status("Querying OpenAI API...")
-        logging.info("Debounce finished, starting API query thread.")
-        # Start the actual API call in a background thread to avoid blocking the GUI
-        thread = threading.Thread(target=self.query_api_thread, args=(text_to_query,), daemon=True)
-        thread.start()
-
     def update_text_widget(self, text_widget, content):
         """Safely updates a Tkinter Text widget from any thread."""
         text_widget.config(state="normal")
@@ -156,75 +102,43 @@ class SimpleChatApp(tk.Tk):
 
     def update_clipboard_display(self, text):
         """Updates the clipboard display area on the main thread."""
-        self.after(0, self.update_text_widget, self.clipboard_text, text)
+        self.update_text_widget(self.clipboard_text, text)
 
     def update_response_display(self, text):
         """Updates the response display area and the shared state on the main thread."""
-        global_state.update_response(text)  # Update shared state for Flask
-        self.after(0, self.update_text_widget, self.response_text, text)
-        self.after(0, self.update_status, "API response received.") # Update status bar via main thread
-
-
-    def query_api_thread(self, prompt):
-        """Runs the OpenAI API call in a separate thread."""
-        model = self.model_var.get()
-        logging.info(f"Sending query to model: {model}")
-        
-        try:
-            output = self.llm_service.query_api(prompt, model)
-            logging.info("API response successfully received.")
-            # Schedule the GUI update on the main thread
-            self.update_response_display(output)
-
-        except Exception as e:
-            error_msg = f"API Error: {str(e)}"
-            logging.exception("An unexpected error occurred during API call") # Log full traceback
-            self.update_response_display(f"Error querying API: {error_msg}")
+        # The global_state update is now handled by the controller's _run_query
+        self.update_text_widget(self.response_text, text)
 
 
     def toggle_query(self):
-        """Toggles the solving mode on/off."""
-        self.query_enabled = not self.query_enabled
-        if self.query_enabled:
+        """Toggles the solving mode on/off via the controller."""
+        new_state = self.controller.toggle_solving_mode()
+        if new_state:
             self.toggle_button.config(text="Pause Solving Mode")
             self.update_status("Solving Mode ACTIVE. Monitoring clipboard...")
         else:
-            self.toggle_button.config(text="Start Agent Mode")
-        print(f"Querying {'enabled' if self.query_enabled else 'paused'}")
+            self.toggle_button.config(text="Start Solving Mode") # Changed from "Start Agent Mode"
+            self.update_status("Solving Mode PAUSED.")
+        logging.info(f"Querying {'enabled' if new_state else 'paused'}")
 
     def toggle_server(self):
-        """Starts or stops the Flask server in a separate thread."""
-        if self.server_running:
-            try:
-                server.stop_server()
-                self.server_running = False
-                self.server_thread = None
+        """Starts or stops the Flask server via the controller."""
+        try:
+            is_running, server_url = self.controller.toggle_server()
+            self.controller.server_running = is_running # Update controller's state
+            if is_running:
+                self.server_label.config(text=f"Server: Running at {server_url}")
+                self.server_button.config(text="Stop Server")
+                self.update_status(f"Flask server started at {server_url}")
+            else:
                 self.server_label.config(text="Server: Not running")
                 self.server_button.config(text="Start Phone Server")
                 self.update_status("Flask server stopped gracefully.")
-            except Exception as e:
-                logging.exception("Failed to stop Flask server")
-                self.update_status(f"Error stopping server: {e}")
-        else:
-            try:
-                ip_address = get_local_ip()
-                server_url = f"http://{ip_address}:5000/"
-                self.server_label.config(text=f"Server: Running at {server_url}")
-                self.server_button.config(text="Stop Server")
-
-                # Start Flask server
-                self.server_running = True
-                self.server_thread = server.start_server()
-                
-                self.update_status(f"Flask server started at {server_url}")
-                logging.info(f"Flask server thread started at {server_url}")
-
-            except Exception as e:
-                logging.exception("Failed to start Flask server")
-                self.server_label.config(text="Server: Error starting")
-                self.server_button.config(text="Start Phone Server")
-                self.update_status(f"Error starting server: {e}")
-                self.server_running = False
+        except Exception as e:
+            logging.exception("Failed to toggle Flask server")
+            self.server_label.config(text="Server: Error starting")
+            self.server_button.config(text="Start Phone Server")
+            self.update_status(f"Error toggling server: {e}")
 
 
     def open_settings(self):
@@ -237,7 +151,8 @@ class SimpleChatApp(tk.Tk):
         # API Key Label and Entry
         ttk.Label(settings_window, text="OpenAI API Key:").pack(pady=(10, 5), padx=10, anchor='w')
         
-        api_key_var = tk.StringVar(value=self.llm_service.api_key if self.llm_service.api_key else "")
+        # Use the LLMService from the controller
+        api_key_var = tk.StringVar(value=self.controller.llm_service.api_key if self.controller.llm_service.api_key else "")
         api_key_entry = ttk.Entry(settings_window, textvariable=api_key_var, width=50, show="*")
         api_key_entry.pack(pady=5, padx=10)
 
@@ -267,9 +182,8 @@ class SimpleChatApp(tk.Tk):
                 
                 set_key(env_file, "OPENAI_API_KEY", new_key)
                 
-                # Reload service
-                os.environ["OPENAI_API_KEY"] = new_key
-                self.llm_service = LLMService() # Re-initialize
+                # Update LLMService in controller
+                self.controller.llm_service.update_api_key(new_key)
                 
                 messagebox.showinfo("Success", "Settings saved and API key updated!", parent=settings_window)
                 settings_window.destroy()
@@ -283,20 +197,13 @@ class SimpleChatApp(tk.Tk):
         """Handles the window close event."""
         logging.info("Application closing...")
         self.update_status("Exiting...")
-        # Stop clipboard polling loop
-        if self.polling_after_id:
-            self.after_cancel(self.polling_after_id)
-            self.polling_after_id = None
-            logging.debug("Clipboard polling stopped.")
+        
+        # Stop controller's monitoring thread
+        self.controller.stop_monitoring()
 
-        # Cancel any pending API call debounce
-        if self.api_call_after_id:
-            self.after_cancel(self.api_call_after_id)
-            self.api_call_after_id = None
-            logging.debug("Cancelled pending API call.")
-
-        # No clean way to stop flask dev server thread here, relies on daemon=True
-        if self.server_running:
-             logging.info("Flask server thread is a daemon and will be terminated.")
+        # Stop Flask server if running
+        if self.controller.server_running:
+             server.stop_server()
+             logging.info("Flask server stopped as part of application shutdown.")
 
         self.destroy() # Close the Tkinter window
