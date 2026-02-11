@@ -9,6 +9,8 @@ from utils import get_local_ip
 import server
 from llm_service import LLMService
 from controller import InterviewController # Import the new controller
+import qrcode
+from PIL import Image, ImageTk # Import Pillow modules
 
 class SimpleChatApp(tk.Tk):
     def __init__(self):
@@ -23,7 +25,8 @@ class SimpleChatApp(tk.Tk):
             clipboard_callback=lambda text: self.after(0, self.update_clipboard_display, text),
             status_callback=lambda text: self.after(0, self.update_status, text),
             monitoring_status_callback=lambda status, color: self.after(0, self.update_monitoring_indicator, status, color),
-            response_loading_callback=lambda is_loading: self.after(0, self.set_response_loading_state, is_loading)
+            response_loading_callback=lambda is_loading: self.after(0, self.set_response_loading_state, is_loading),
+            qr_code_callback=lambda url: self.after(0, self.update_qr_code, url)
         )
         
         if not self.controller.llm_service.api_key:
@@ -91,7 +94,36 @@ class SimpleChatApp(tk.Tk):
         self.server_label = ttk.Label(main_frame, text="Server: Not running", anchor=tk.W)
         self.server_label.pack(fill=tk.X, pady=(5, 0))
 
+        # QR Code Display
+        self.qr_code_label = ttk.Label(main_frame)
+        self.qr_code_label.pack(pady=(5,0))
 
+
+    def update_qr_code(self, url):
+        """Generates and displays a QR code for the given URL, or clears it if url is None."""
+        if url:
+            try:
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=10,
+                    border=4,
+                )
+                qr.add_data(url)
+                qr.make(fit=True)
+
+                img = qr.make_image(fill_color="black", back_color="white")
+                img = img.resize((150, 150), Image.Resampling.LANCZOS) # Resize for display
+                self.qr_photo = ImageTk.PhotoImage(img)
+                self.qr_code_label.config(image=self.qr_photo)
+            except Exception as e:
+                logging.error(f"Error generating QR code: {e}")
+                self.qr_code_label.config(image='')
+                self.qr_photo = None
+        else:
+            self.qr_code_label.config(image='')
+            self.qr_photo = None
+    
     def on_model_selected(self, event):
         """Updates the LLM service model when a new model is selected in the combobox."""
         selected_model = self.model_var.get()

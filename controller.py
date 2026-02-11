@@ -6,13 +6,14 @@ from llm_service import LLMService
 import server
 
 class InterviewController:
-    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback):
+    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback):
         self.llm_service = LLMService()
         self.update_callback = update_callback        # To update response UI
         self.clipboard_callback = clipboard_callback  # To update clipboard UI
         self.status_callback = status_callback        # To update status bar
         self.monitoring_status_callback = monitoring_status_callback # To update monitoring indicator
         self.response_loading_callback = response_loading_callback # To update response loading indicator
+        self.qr_code_callback = qr_code_callback      # To update QR code display
         
         self.last_clipboard_content = ""
         self.query_enabled = False
@@ -106,9 +107,12 @@ class InterviewController:
         if self.server_running:
             server.stop_server()
             self.server_running = False
+            self.qr_code_callback(None) # Clear QR code when server stops
             return False, None
         else:
             server.start_server(host, port)
             self.server_running = True
             from utils import get_local_ip
-            return True, f"http://{get_local_ip()}:{port}/"
+            server_url = f"http://{get_local_ip()}:{port}/"
+            self.qr_code_callback(server_url) # Display QR code when server starts
+            return True, server_url
