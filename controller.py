@@ -6,12 +6,13 @@ from llm_service import LLMService
 import server
 
 class InterviewController:
-    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback):
+    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback):
         self.llm_service = LLMService()
         self.update_callback = update_callback        # To update response UI
         self.clipboard_callback = clipboard_callback  # To update clipboard UI
         self.status_callback = status_callback        # To update status bar
         self.monitoring_status_callback = monitoring_status_callback # To update monitoring indicator
+        self.response_loading_callback = response_loading_callback # To update response loading indicator
         
         self.last_clipboard_content = ""
         self.query_enabled = False
@@ -75,6 +76,7 @@ class InterviewController:
         """Executes the API query."""
         self.status_callback("Querying OpenAI API...")
         self.monitoring_status_callback("Querying AI...", "blue") # Visual feedback
+        self.response_loading_callback(True) # Indicate loading of AI response
         try:
             output = self.llm_service.query_api(text, model)
             global_state.update_response(output)
@@ -89,6 +91,8 @@ class InterviewController:
             self.update_callback(f"Error: {e}")
             self.status_callback("API Error.")
             self.monitoring_status_callback("Error, monitoring active", "red") # Indicate error but still monitoring
+        finally:
+            self.response_loading_callback(False) # Clear loading indicator after response or error
 
     def toggle_solving_mode(self):
         self.query_enabled = not self.query_enabled

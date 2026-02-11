@@ -22,7 +22,8 @@ class SimpleChatApp(tk.Tk):
             update_callback=lambda text: self.after(0, self.update_response_display, text),
             clipboard_callback=lambda text: self.after(0, self.update_clipboard_display, text),
             status_callback=lambda text: self.after(0, self.update_status, text),
-            monitoring_status_callback=lambda status, color: self.after(0, self.update_monitoring_indicator, status, color)
+            monitoring_status_callback=lambda status, color: self.after(0, self.update_monitoring_indicator, status, color),
+            response_loading_callback=lambda is_loading: self.after(0, self.set_response_loading_state, is_loading)
         )
         
         if not self.controller.llm_service.api_key:
@@ -115,13 +116,27 @@ class SimpleChatApp(tk.Tk):
         text_widget.config(state="disabled")
         text_widget.see(tk.END) # Scroll to the end
 
+    def set_response_loading_state(self, is_loading):
+        """Displays a loading message in the response area."""
+        self.response_text.config(state="normal")
+        if is_loading:
+            self.response_text.delete("1.0", tk.END)
+            self.response_text.insert(tk.END, "Loading AI Response...\n", "loading_tag")
+            self.response_text.tag_config("loading_tag", foreground="blue", font=("Segoe UI", 10, "italic"))
+            self.response_text.see(tk.END)
+        else:
+            # Clear loading message if it's still there
+            if self.response_text.tag_ranges("loading_tag"):
+                self.response_text.delete("1.0", tk.END)
+        self.response_text.config(state="disabled")
+
     def update_clipboard_display(self, text):
         """Updates the clipboard display area on the main thread."""
         self.update_text_widget(self.clipboard_text, text)
 
     def update_response_display(self, text):
         """Updates the response display area and the shared state on the main thread."""
-        # The global_state update is now handled by the controller's _run_query
+        self.set_response_loading_state(False) # Clear loading message
         self.update_text_widget(self.response_text, text)
 
 
