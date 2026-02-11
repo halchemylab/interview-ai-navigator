@@ -1,7 +1,7 @@
 import threading
 import logging
 import json
-from flask import Flask, jsonify, render_template, Response
+from flask import Flask, jsonify, render_template, Response, request
 from state import global_state
 from utils import get_local_ip
 
@@ -40,6 +40,19 @@ def stream():
             yield f"data: {data}\n\n"
 
     return Response(event_stream(), mimetype="text/event-stream")
+
+@flask_app.route('/test_connection', methods=['POST'])
+def test_connection():
+    """Endpoint to receive test messages from the desktop app."""
+    try:
+        data = request.get_json()
+        message = data.get("message", "Test message received!")
+        global_state.update_response(f"Phone Display Test: {message}")
+        logging.info(f"Received test message for phone display: {message}")
+        return jsonify({"status": "success", "received_message": message}), 200
+    except Exception as e:
+        logging.error(f"Error processing test connection request: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 class ServerThread(threading.Thread):
     def __init__(self, app, host, port):

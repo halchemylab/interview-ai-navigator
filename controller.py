@@ -4,6 +4,7 @@ import pyperclip
 from state import global_state
 from llm_service import LLMService
 import server
+import requests # Import requests for HTTP calls
 
 class InterviewController:
     def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback):
@@ -18,6 +19,8 @@ class InterviewController:
         self.last_clipboard_content = ""
         self.query_enabled = False
         self.server_running = False
+        self.server_ip = None  # Store server IP
+        self.server_port = None # Store server port
         
         self.polling_rate_ms = 1000
         self.debounce_ms = 750
@@ -108,11 +111,37 @@ class InterviewController:
             server.stop_server()
             self.server_running = False
             self.qr_code_callback(None) # Clear QR code when server stops
+            self.server_ip = None
+            self.server_port = None
             return False, None
         else:
             server.start_server(host, port)
             self.server_running = True
             from utils import get_local_ip
-            server_url = f"http://{get_local_ip()}:{port}/"
+            self.server_ip = get_local_ip()
+            self.server_port = port
+            server_url = f"http://{self.server_ip}:{self.server_port}/"
             self.qr_code_callback(server_url) # Display QR code when server starts
             return True, server_url
+    
+    def send_test_message_to_server(self):
+        """Sends a test message to the Flask server to verify connection."""
+        if not self.server_running or not self.server_ip or not self.server_port:
+            logging.warning("Attempted to send test message, but server is not running or IP/port are unknown.")
+            return False
+        
+        try:
+            test_url = f"http://{self.server_ip}:{self.server_port}/test_connection"
+            response = requests.post(test_url, json={"message": "Test Connection from Desktop App"})
+            response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+            logging.info(f"Test message sent successfully to {test_url}. Response: {response.json()}")
+            return True
+        except requests.exceptions.ConnectionError as e:
+            logging.error(f"Connection error while sending test message: {e}")
+            return False
+        except requests.exceptions.Timeout:
+            logging.error("Timeout error while sending test message.")
+            return False
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error sending test message to Flask server: {e}")
+            return False

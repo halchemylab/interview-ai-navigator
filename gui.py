@@ -84,6 +84,9 @@ class SimpleChatApp(tk.Tk):
 
         self.settings_button = ttk.Button(button_frame, text="Settings", command=self.open_settings, width=15)
         self.settings_button.pack(side=tk.LEFT, padx=5)
+
+        self.test_connection_button = ttk.Button(button_frame, text="Test Phone Connection", command=self.test_phone_connection, width=20)
+        self.test_connection_button.pack(side=tk.LEFT, padx=5)
         button_frame.pack(pady=5)
 
         # --- Status Bar ---
@@ -171,6 +174,31 @@ class SimpleChatApp(tk.Tk):
         self.set_response_loading_state(False) # Clear loading message
         self.update_text_widget(self.response_text, text)
 
+
+    def test_phone_connection(self):
+        """Sends a test message to the Flask server to check phone connection."""
+        if not self.controller.server_running:
+            self.update_status("Server not running. Start the phone server first.")
+            messagebox.showwarning("Server Not Running", "Please start the phone server before testing the connection.")
+            return
+
+        self.update_status("Sending test message to phone...")
+        # Run in a thread to avoid blocking GUI
+        threading.Thread(target=self._run_test_connection_thread, daemon=True).start()
+
+    def _run_test_connection_thread(self):
+        try:
+            success = self.controller.send_test_message_to_server()
+            if success:
+                self.after(0, lambda: self.update_status("Test message sent successfully! Check your phone."))
+                self.after(0, lambda: messagebox.showinfo("Connection Test", "Test message sent successfully! Check your phone."))
+            else:
+                self.after(0, lambda: self.update_status("Failed to send test message. Is the phone connected and server accessible?"))
+                self.after(0, lambda: messagebox.showerror("Connection Test Failed", "Failed to send test message. Is the phone connected and server accessible?"))
+        except Exception as e:
+            logging.exception("Error during phone connection test")
+            self.after(0, lambda: self.update_status(f"Error during test: {e}"))
+            self.after(0, lambda: messagebox.showerror("Connection Test Error", f"An error occurred: {e}"))
 
     def toggle_query(self):
         """Toggles the solving mode on/off via the controller."""
