@@ -5,8 +5,13 @@ from flask import Flask, jsonify, render_template, Response
 from state import global_state
 from utils import get_local_ip
 
+from werkzeug.serving import make_server
+
 # Initialize Flask server App
 flask_app = Flask(__name__)
+
+# Global server instance
+_server_instance = None
 
 @flask_app.route('/')
 def index():
@@ -36,17 +41,39 @@ def stream():
 
     return Response(event_stream(), mimetype="text/event-stream")
 
-def run_flask_app(host="0.0.0.0", port=5000):
-    """Runs the Flask app."""
-    # Note: app.run is blocking, so this is intended to be run in a thread
-    flask_app.run(host=host, port=port, debug=False, use_reloader=False)
+class ServerThread(threading.Thread):
+    def __init__(self, app, host, port):
+        threading.Thread.__init__(self, daemon=True)
+        self.srv = make_server(host, port, app, threaded=True)
+        self.ctx = app.app_context()
+        self.ctx.push()
 
-def start_server_thread(host="0.0.0.0", port=5000):
-    """Starts the Flask server in a daemon thread."""
-    server_thread = threading.Thread(
-        target=run_flask_app,
-        kwargs={"host": host, "port": port},
-        daemon=True
-    )
-    server_thread.start()
-    return server_thread
+    def run(self):
+        logging.info("Starting Flask server...")
+        self.srv.serve_forever()
+
+    def shutdown(self):
+        logging.info("Shutting down Flask server...")
+        self.srv.shutdown()
+
+def start_server(host="0.0.0.0", port=5000):
+    """Starts the Flask server if not already running."""
+    global _server_instance
+    if _server_instance and _server_instance.is_alive():
+        logging.warning("Server is already running.")
+        return _server_instance
+
+    _server_instance = ServerThread(flask_app, host, port)
+    _server_instance.start()
+    return _server_instance
+
+def stop_server():
+    """Gracefully stops the running Flask server."""
+    global _server_instance
+    if _server_instance:
+        _server_instance.shutdown()
+        _server_instance.join(timeout=2)
+        _server_instance = None
+        logging.info("Server stopped successfully.")
+    else:
+        logging.warning("No server instance to stop.")

@@ -195,24 +195,26 @@ class SimpleChatApp(tk.Tk):
     def toggle_server(self):
         """Starts or stops the Flask server in a separate thread."""
         if self.server_running:
-            # Stopping the server - Note: This won't cleanly stop app.run()
-            # We rely on the thread being a daemon.
-            self.server_running = False
-            self.server_thread = None # Allow garbage collection
-            self.server_label.config(text="Server: Not running")
-            self.server_button.config(text="Start Phone Server")
-            self.update_status("Flask server stopped (thread terminated).")
-            logging.info("Flask server stopped (daemon thread will exit).")
+            try:
+                server.stop_server()
+                self.server_running = False
+                self.server_thread = None
+                self.server_label.config(text="Server: Not running")
+                self.server_button.config(text="Start Phone Server")
+                self.update_status("Flask server stopped gracefully.")
+            except Exception as e:
+                logging.exception("Failed to stop Flask server")
+                self.update_status(f"Error stopping server: {e}")
         else:
             try:
                 ip_address = get_local_ip()
-                server_url = f"http://{ip_address}:5000/response"
+                server_url = f"http://{ip_address}:5000/"
                 self.server_label.config(text=f"Server: Running at {server_url}")
                 self.server_button.config(text="Stop Server")
 
-                # Start Flask in a daemon thread via server module
+                # Start Flask server
                 self.server_running = True
-                self.server_thread = server.start_server_thread()
+                self.server_thread = server.start_server()
                 
                 self.update_status(f"Flask server started at {server_url}")
                 logging.info(f"Flask server thread started at {server_url}")
@@ -220,9 +222,9 @@ class SimpleChatApp(tk.Tk):
             except Exception as e:
                 logging.exception("Failed to start Flask server")
                 self.server_label.config(text="Server: Error starting")
-                self.server_button.config(text="Start Phone Server") # Reset button
+                self.server_button.config(text="Start Phone Server")
                 self.update_status(f"Error starting server: {e}")
-                self.server_running = False # Ensure state is correct
+                self.server_running = False
 
 
     def open_settings(self):
