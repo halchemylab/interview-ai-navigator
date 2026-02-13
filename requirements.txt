@@ -6,3 +6,6 @@ pytest>=7.0.0
 qrcode>=7.3.1
 Pillow>=10.2.0
 requests>=2.32.0
+keyboard>=0.13.5
+pygments>=2.15.0
+markdown>=3.4.0
