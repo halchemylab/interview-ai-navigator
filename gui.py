@@ -11,6 +11,10 @@ from llm_service import LLMService
 from controller import InterviewController # Import the new controller
 import qrcode
 from PIL import Image, ImageTk # Import Pillow modules
+import re
+from pygments import lexers, highlight
+from pygments.lexers import get_lexer_by_name, guess_lexer
+from pygments.styles import get_style_by_name
 
 class SimpleChatApp(tk.Tk):
     def __init__(self):
@@ -45,7 +49,7 @@ class SimpleChatApp(tk.Tk):
 
         # --- Start Processes ---
         self.update_status("Ready. Press 'Start Solving Mode' to begin.")
-        # self.controller.start_monitoring() # Removed from here, it's called in interview-solver.py
+        self.controller.start_monitoring() 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def _create_widgets(self):
@@ -149,12 +153,86 @@ class SimpleChatApp(tk.Tk):
         logging.info(f"Status: {message}") # Log status updates
 
     def update_text_widget(self, text_widget, content):
-        """Safely updates a Tkinter Text widget from any thread."""
+        """Safely updates a Tkinter Text widget with syntax highlighting for code blocks."""
         text_widget.config(state="normal")
         text_widget.delete("1.0", tk.END)
-        text_widget.insert(tk.END, content)
+        
+        # Define tags for code blocks
+        text_widget.tag_config("code_block", background="#f0f0f0", font=("Consolas", 10))
+        text_widget.tag_config("bold", font=("Segoe UI", 10, "bold"))
+        
+        # Simple regex to split content into code blocks and normal text
+        parts = re.split(r'(```[\s\S]*?```)', content)
+        
+        for part in parts:
+            if part.startswith("```") and part.endswith("```"):
+                # Code block
+                code_content = part[3:-3].strip()
+                # Try to extract language
+                lines = code_content.split('\n')
+                lang = "python" # Default
+                if lines and not lines[0].startswith(' ') and len(lines[0]) < 20:
+                    lang = lines[0].strip()
+                    code_content = '\n'.join(lines[1:])
+                
+                start_index = text_widget.index(tk.INSERT)
+                text_widget.insert(tk.END, code_content + "\n", "code_block")
+                
+                # Apply basic syntax highlighting within the code block if pygments is available
+                self._apply_syntax_highlighting(text_widget, code_content, lang, start_index)
+            else:
+                # Normal text - handle basic bolding
+                sub_parts = re.split(r'(\*\*[\s\S]*?\*\*)', part)
+                for sub_part in sub_parts:
+                    if sub_part.startswith("**") and sub_part.endswith("**"):
+                        text_widget.insert(tk.END, sub_part[2:-2], "bold")
+                    else:
+                        text_widget.insert(tk.END, sub_part)
+
         text_widget.config(state="disabled")
-        text_widget.see(tk.END) # Scroll to the end
+        text_widget.see(tk.END)
+
+    def _apply_syntax_highlighting(self, text_widget, code, lang, start_index):
+        """Applies syntax highlighting to a code block using Pygments tokens."""
+        try:
+            lexer = get_lexer_by_name(lang, stripall=True)
+        except:
+            lexer = guess_lexer(code)
+        
+        # Tokenize
+        tokens = list(lexer.get_tokens(code))
+        
+        # Map pygments token types to colors
+        color_map = {
+            'Token.Keyword': '#0000ff',
+            'Token.Name.Function': '#000080',
+            'Token.Name.Class': '#000080',
+            'Token.String': '#a31515',
+            'Token.Comment': '#008000',
+            'Token.Operator': '#000000',
+            'Token.Number': '#098658',
+        }
+
+        current_pos = start_index
+        for token_type, value in tokens:
+            # Tkinter uses "line.char" format
+            t_type_str = str(token_type)
+            color = None
+            for key, val in color_map.items():
+                if t_type_str.startswith(key):
+                    color = val
+                    break
+            
+            if color:
+                tag_name = f"syntax_{color.replace('#', '')}"
+                text_widget.tag_config(tag_name, foreground=color)
+                
+                # Calculate end position
+                end_pos = text_widget.index(f"{current_pos} + {len(value)}c")
+                text_widget.tag_add(tag_name, current_pos, end_pos)
+                current_pos = end_pos
+            else:
+                current_pos = text_widget.index(f"{current_pos} + {len(value)}c")
 
     def set_response_loading_state(self, is_loading):
         """Displays a loading message in the response area."""
