@@ -67,3 +67,30 @@ class LLMService:
             error_msg = f"API Error: {str(e)}"
             logging.exception("An unexpected error occurred during API call")
             return f"Error querying API: {error_msg}"
+
+    def query_api_stream(self, prompt, model="gpt-4o-mini"):
+        """Queries the OpenAI API and yields response chunks."""
+        if not self.client:
+            yield "Error: OpenAI Client not initialized. Check API Key."
+            return
+
+        logging.info(f"Sending streaming query to model: {model}")
+        messages = [
+            {"role": "system", "content": "You are an expert programming assistant. Provide simple commenting, hints, and code response only."},
+            {"role": "user", "content": prompt}
+        ]
+        try:
+            stream = self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=1000,
+                temperature=0.6,
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+        except Exception as e:
+            logging.exception("An unexpected error occurred during streaming API call")
+            yield f"Error querying API: {str(e)}"

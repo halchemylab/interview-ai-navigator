@@ -77,26 +77,33 @@ class InterviewController:
         self._debounce_timer.start()
 
     def _run_query(self, text, model):
-        """Executes the API query."""
-        self.status_callback("Querying OpenAI API...")
-        self.monitoring_status_callback("Querying AI...", "blue") # Visual feedback
-        self.response_loading_callback(True) # Indicate loading of AI response
+        """Executes the API query with streaming."""
+        self.status_callback("Querying OpenAI API (streaming)...")
+        self.monitoring_status_callback("Querying AI...", "blue")
+        self.response_loading_callback(True)
+        
+        full_response = ""
         try:
-            output = self.llm_service.query_api(text, model)
-            global_state.update_response(output)
-            self.update_callback(output)
+            for chunk in self.llm_service.query_api_stream(text, model):
+                full_response += chunk
+                # Update both UI and global state for phone display
+                self.update_callback(full_response)
+                global_state.update_response(full_response)
+                
             self.status_callback("API response received.")
-            if self.query_enabled: # Only go back to active if solving mode is still on
+            if self.query_enabled:
                 self.monitoring_status_callback("Active", "green")
             else:
                 self.monitoring_status_callback("Paused", "gray")
         except Exception as e:
             logging.exception("Error in query thread")
-            self.update_callback(f"Error: {e}")
+            error_msg = f"Error: {e}"
+            self.update_callback(error_msg)
+            global_state.update_response(error_msg)
             self.status_callback("API Error.")
-            self.monitoring_status_callback("Error, monitoring active", "red") # Indicate error but still monitoring
+            self.monitoring_status_callback("Error, monitoring active", "red")
         finally:
-            self.response_loading_callback(False) # Clear loading indicator after response or error
+            self.response_loading_callback(False)
 
     def toggle_solving_mode(self):
         self.query_enabled = not self.query_enabled
