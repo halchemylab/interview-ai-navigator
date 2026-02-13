@@ -26,11 +26,16 @@ class SimpleChatApp(tk.Tk):
             status_callback=lambda text: self.after(0, self.update_status, text),
             monitoring_status_callback=lambda status, color: self.after(0, self.update_monitoring_indicator, status, color),
             response_loading_callback=lambda is_loading: self.after(0, self.set_response_loading_state, is_loading),
-            qr_code_callback=lambda url: self.after(0, self.update_qr_code, url)
+            qr_code_callback=lambda url: self.after(0, self.update_qr_code, url),
+            visibility_callback=lambda: self.after(0, self.toggle_visibility),
+            solving_mode_callback=lambda enabled: self.after(0, self.update_solving_mode_ui, enabled)
         )
         
         if not self.controller.llm_service.api_key:
              messagebox.showerror("Error", "OpenAI API key not found.\nPlease create a .env file with OPENAI_API_KEY=your_key or configure it in Settings.")
+
+        # --- Window State ---
+        self.is_hidden = False
 
         # --- OpenAI Model ---
         self.model_var = tk.StringVar(value="gpt-4o-mini") # Default model
@@ -202,14 +207,29 @@ class SimpleChatApp(tk.Tk):
 
     def toggle_query(self):
         """Toggles the solving mode on/off via the controller."""
-        new_state = self.controller.toggle_solving_mode()
-        if new_state:
+        self.controller.toggle_solving_mode()
+
+    def update_solving_mode_ui(self, enabled):
+        """Updates the UI button and status based on solving mode state."""
+        if enabled:
             self.toggle_button.config(text="Pause Solving Mode")
             self.update_status("Solving Mode ACTIVE. Monitoring clipboard...")
         else:
-            self.toggle_button.config(text="Start Solving Mode") # Changed from "Start Agent Mode"
+            self.toggle_button.config(text="Start Solving Mode")
             self.update_status("Solving Mode PAUSED.")
-        logging.info(f"Querying {'enabled' if new_state else 'paused'}")
+        logging.info(f"Solving mode {'enabled' if enabled else 'paused'}")
+
+    def toggle_visibility(self):
+        """Toggles the main window visibility."""
+        if self.is_hidden:
+            self.deiconify()
+            self.attributes('-topmost', True)
+            self.is_hidden = False
+            logging.info("Window shown.")
+        else:
+            self.withdraw()
+            self.is_hidden = True
+            logging.info("Window hidden.")
 
     def toggle_server(self):
         """Starts or stops the Flask server via the controller."""

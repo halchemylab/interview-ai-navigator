@@ -1,13 +1,14 @@
 import threading
 import logging
 import pyperclip
+import keyboard
 from state import global_state
 from llm_service import LLMService
 import server
 import requests # Import requests for HTTP calls
 
 class InterviewController:
-    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback):
+    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback, visibility_callback=None, solving_mode_callback=None):
         self.llm_service = LLMService()
         self.update_callback = update_callback        # To update response UI
         self.clipboard_callback = clipboard_callback  # To update clipboard UI
@@ -15,6 +16,8 @@ class InterviewController:
         self.monitoring_status_callback = monitoring_status_callback # To update monitoring indicator
         self.response_loading_callback = response_loading_callback # To update response loading indicator
         self.qr_code_callback = qr_code_callback      # To update QR code display
+        self.visibility_callback = visibility_callback # To toggle window visibility
+        self.solving_mode_callback = solving_mode_callback # To sync UI button
         
         self.last_clipboard_content = ""
         self.query_enabled = False
@@ -27,6 +30,36 @@ class InterviewController:
         self.monitor_thread = None
         self.stop_event = threading.Event()
         self._debounce_timer = None
+        
+        self._setup_hotkeys()
+
+    def _setup_hotkeys(self):
+        """Registers global hotkeys."""
+        try:
+            # Alt+S: Force solve from current clipboard
+            keyboard.add_hotkey('alt+s', self.force_solve)
+            # Alt+Q: Toggle solving mode
+            keyboard.add_hotkey('alt+q', self.toggle_solving_mode_hotkey)
+            # Alt+H: Toggle window visibility
+            if self.visibility_callback:
+                keyboard.add_hotkey('alt+h', self.visibility_callback)
+            logging.info("Global hotkeys (Alt+S, Alt+Q, Alt+H) registered.")
+        except Exception as e:
+            logging.error(f"Failed to register hotkeys: {e}")
+
+    def force_solve(self):
+        """Manually triggers a solve from current clipboard."""
+        current_content = pyperclip.paste()
+        if current_content and len(current_content) > 1:
+            logging.info("Manual solve triggered via hotkey.")
+            self.status_callback("Manual solve triggered...")
+            self.clipboard_callback(current_content)
+            self._run_query(current_content, self.llm_service.model)
+
+    def toggle_solving_mode_hotkey(self):
+        """Hotkey wrapper for toggling solving mode."""
+        new_state = self.toggle_solving_mode()
+        self.status_callback(f"Solving Mode {'ACTIVE' if new_state else 'PAUSED'} (via hotkey)")
 
     def start_monitoring(self):
         """Starts the clipboard monitoring thread."""
@@ -111,6 +144,10 @@ class InterviewController:
             self.monitoring_status_callback("Active", "green")
         else:
             self.monitoring_status_callback("Paused", "gray")
+        
+        if self.solving_mode_callback:
+            self.solving_mode_callback(self.query_enabled)
+            
         return self.query_enabled
 
     def toggle_server(self, host="0.0.0.0", port=5000):
