@@ -4,10 +4,22 @@ import openai
 from dotenv import load_dotenv
 
 class LLMService:
+    SYSTEM_PROMPTS = {
+        "default": "You are an expert programming assistant. Provide simple commenting, hints, and code response only.",
+        "interview": """You are an expert technical interviewer assistant. 
+        Structure your response into 3 CLEAR sections:
+        1. LOGIC: A brief, high-level explanation of the approach (1-2 sentences).
+        2. PSEUDOCODE: Simple pseudocode to guide the implementation.
+        3. CODE: The final optimized solution in the requested language.
+        Keep it concise and professional."""
+    }
+
     def __init__(self):
         load_dotenv()
         self.api_key = os.getenv('OPENAI_API_KEY')
         self.client = None
+        self.model = "gpt-4o-mini"
+        self.current_prompt_mode = "interview" # Default to interview mode for this project
         self._initialize_client()
 
     def _initialize_client(self):
@@ -37,7 +49,7 @@ class LLMService:
 
         logging.info(f"Sending query to model: {model}")
         messages = [
-            {"role": "system", "content": "You are an expert programming assistant. Provide simple commenting, hints, and code response only."},
+            {"role": "system", "content": self.SYSTEM_PROMPTS.get(self.current_prompt_mode, self.SYSTEM_PROMPTS["default"])},
             {"role": "user", "content": prompt}
         ]
         try:
@@ -76,7 +88,7 @@ class LLMService:
 
         logging.info(f"Sending streaming query to model: {model}")
         messages = [
-            {"role": "system", "content": "You are an expert programming assistant. Provide simple commenting, hints, and code response only."},
+            {"role": "system", "content": self.SYSTEM_PROMPTS.get(self.current_prompt_mode, self.SYSTEM_PROMPTS["default"])},
             {"role": "user", "content": prompt}
         ]
         try:

@@ -66,6 +66,11 @@ class SimpleChatApp(tk.Tk):
                                       values=["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]) # Added 3.5-turbo
         model_selector.pack(side=tk.LEFT)
         model_selector.bind("<<ComboboxSelected>>", self.on_model_selected) # Bind event
+        
+        # Interview Mode Toggle
+        self.interview_mode_var = tk.BooleanVar(value=True) # Default on
+        ttk.Checkbutton(model_frame, text="Step-by-Step Interview Mode", variable=self.interview_mode_var, command=self.toggle_interview_mode).pack(side=tk.LEFT, padx=(15, 0))
+        
         model_frame.pack(pady=(0, 10), anchor='w')
 
         # Monitoring Indicator
@@ -291,6 +296,11 @@ class SimpleChatApp(tk.Tk):
             logging.exception("Error during phone connection test")
             self.after(0, lambda: self.update_status(f"Error during test: {e}"))
             self.after(0, lambda: messagebox.showerror("Connection Test Error", f"An error occurred: {e}"))
+
+    def toggle_interview_mode(self):
+        """Toggles the interview mode in the controller."""
+        enabled = self.interview_mode_var.get()
+        self.controller.toggle_interview_mode(enabled)
 
     def toggle_query(self):
         """Toggles the solving mode on/off via the controller."""

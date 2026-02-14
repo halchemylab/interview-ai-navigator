@@ -179,6 +179,14 @@ class InterviewController:
             
         return self.query_enabled
 
+    def toggle_interview_mode(self, enabled):
+        """Toggles between interview and default mode in LLM service."""
+        mode = "interview" if enabled else "default"
+        self.llm_service.current_prompt_mode = mode
+        logging.info(f"LLM mode set to: {mode}")
+        self.status_callback(f"Interview Mode {'ENABLED' if enabled else 'DISABLED'}")
+        return enabled
+
     def toggle_server(self, host="0.0.0.0", port=5000):
         if self.server_running:
             server.stop_server()
