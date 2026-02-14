@@ -4,12 +4,14 @@ import pyperclip
 import keyboard
 from state import global_state
 from llm_service import LLMService
+from ocr_service import OCRService
 import server
 import requests # Import requests for HTTP calls
 
 class InterviewController:
-    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback, visibility_callback=None, solving_mode_callback=None):
+    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback, visibility_callback=None, solving_mode_callback=None, ocr_callback=None):
         self.llm_service = LLMService()
+        self.ocr_service = OCRService()
         self.update_callback = update_callback        # To update response UI
         self.clipboard_callback = clipboard_callback  # To update clipboard UI
         self.status_callback = status_callback        # To update status bar
@@ -18,6 +20,7 @@ class InterviewController:
         self.qr_code_callback = qr_code_callback      # To update QR code display
         self.visibility_callback = visibility_callback # To toggle window visibility
         self.solving_mode_callback = solving_mode_callback # To sync UI button
+        self.ocr_callback = ocr_callback              # To trigger region selection
         
         self.last_clipboard_content = ""
         self.query_enabled = False
@@ -40,12 +43,38 @@ class InterviewController:
             keyboard.add_hotkey('alt+s', self.force_solve)
             # Alt+Q: Toggle solving mode
             keyboard.add_hotkey('alt+q', self.toggle_solving_mode_hotkey)
+            # Alt+Shift+S: Trigger Region OCR
+            keyboard.add_hotkey('alt+shift+s', self.trigger_ocr)
             # Alt+H: Toggle window visibility
             if self.visibility_callback:
                 keyboard.add_hotkey('alt+h', self.visibility_callback)
-            logging.info("Global hotkeys (Alt+S, Alt+Q, Alt+H) registered.")
+            logging.info("Global hotkeys (Alt+S, Alt+Q, Alt+Shift+S, Alt+H) registered.")
         except Exception as e:
             logging.error(f"Failed to register hotkeys: {e}")
+
+    def trigger_ocr(self):
+        """Triggers the region selection for OCR."""
+        if self.ocr_callback:
+            logging.info("OCR trigger initiated via hotkey.")
+            self.status_callback("Select region for OCR...")
+            self.ocr_callback()
+
+    def process_ocr_region(self, region):
+        """Processes the selected region for OCR and runs query."""
+        self.status_callback("Capturing and performing OCR...")
+        try:
+            image = self.ocr_service.take_screenshot_region(region)
+            text = self.ocr_service.perform_ocr(image)
+            
+            if text and len(text) > 1:
+                logging.info(f"OCR Result: {text[:50]}...")
+                self.clipboard_callback(f"[OCR Result]:\n{text}")
+                self._run_query(text, self.llm_service.model)
+            else:
+                self.status_callback("OCR failed to detect text.")
+        except Exception as e:
+            logging.error(f"Error in process_ocr_region: {e}")
+            self.status_callback(f"OCR Error: {e}")
 
     def force_solve(self):
         """Manually triggers a solve from current clipboard."""

@@ -9,6 +9,7 @@ from utils import get_local_ip
 import server
 from llm_service import LLMService
 from controller import InterviewController # Import the new controller
+from ocr_service import RegionSelector
 import qrcode
 from PIL import Image, ImageTk # Import Pillow modules
 import re
@@ -32,7 +33,8 @@ class SimpleChatApp(tk.Tk):
             response_loading_callback=lambda is_loading: self.after(0, self.set_response_loading_state, is_loading),
             qr_code_callback=lambda url: self.after(0, self.update_qr_code, url),
             visibility_callback=lambda: self.after(0, self.toggle_visibility),
-            solving_mode_callback=lambda enabled: self.after(0, self.update_solving_mode_ui, enabled)
+            solving_mode_callback=lambda enabled: self.after(0, self.update_solving_mode_ui, enabled),
+            ocr_callback=lambda: self.after(0, self.open_region_selector)
         )
         
         if not self.controller.llm_service.api_key:
@@ -87,6 +89,9 @@ class SimpleChatApp(tk.Tk):
         button_frame = ttk.Frame(main_frame)
         self.toggle_button = ttk.Button(button_frame, text="Start Solving Mode", command=self.toggle_query, width=20)
         self.toggle_button.pack(side=tk.LEFT, padx=5)
+
+        self.ocr_button = ttk.Button(button_frame, text="Region OCR (Alt+Shift+S)", command=self.open_region_selector, width=25)
+        self.ocr_button.pack(side=tk.LEFT, padx=5)
 
         self.server_button = ttk.Button(button_frame, text="Start Phone Server", command=self.toggle_server, width=20)
         self.server_button.pack(side=tk.LEFT, padx=5)
@@ -257,6 +262,10 @@ class SimpleChatApp(tk.Tk):
         self.set_response_loading_state(False) # Clear loading message
         self.update_text_widget(self.response_text, text)
 
+
+    def open_region_selector(self):
+        """Opens the transparent overlay for region selection."""
+        RegionSelector(callback=self.controller.process_ocr_region)
 
     def test_phone_connection(self):
         """Sends a test message to the Flask server to check phone connection."""

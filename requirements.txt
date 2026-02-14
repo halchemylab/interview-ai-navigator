@@ -9,3 +9,6 @@ requests>=2.32.0
 keyboard>=0.13.5
 pygments>=2.15.0
 markdown>=3.4.0
+pyautogui
+pytesseract
+easyocr
