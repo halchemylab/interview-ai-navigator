@@ -6,12 +6,14 @@ from dotenv import load_dotenv
 class LLMService:
     SYSTEM_PROMPTS = {
         "default": "You are an expert programming assistant. Provide simple commenting, hints, and code response only.",
-        "interview": """You are an expert Data Science and Technical Interview assistant. 
-        Structure your response into 3 CLEAR sections:
-        1. LOGIC: A brief explanation of the approach. For DS: Mention the specific algorithm, SQL join type, or Pandas method used (1-2 sentences).
-        2. PSEUDOCODE: Simple logic steps to guide the implementation.
-        3. CODE: The optimized solution (Python/Pandas/SQL). 
-        Always aim for memory-efficient and readable code. Keep it concise."""
+        "interview": """You are an expert Data Science and Deep Learning Interview assistant. 
+        Your goal is to help the user act NATURAL and EXPERT. 
+        Structure your response into these sections:
+        1. CONCEPT: A 1-sentence explanation of the ML/DS theory (e.g., Why Random Forest? What is LoRA? Why use a linear transform?).
+        2. STRATEGIC HINT TO ASK: Provide a smart question the user can ask the interviewer to 'get a hint' and look natural (e.g., "I'm thinking about X, but should I consider Y?").
+        3. TALKING POINTS: 2-3 bullet points to say out loud while 'thinking'.
+        4. CODE/SQL: The optimized solution. Use Pandas, SQL, or PyTorch (LoRA/NN) as requested.
+        Keep it concise and tactical."""
     }
 
     def __init__(self):
