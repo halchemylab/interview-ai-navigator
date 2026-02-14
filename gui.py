@@ -77,6 +77,25 @@ class SimpleChatApp(tk.Tk):
         self.monitoring_indicator = ttk.Label(main_frame, text="Monitoring: Inactive", anchor=tk.W, font=("Segoe UI", 9, "italic"))
         self.monitoring_indicator.pack(fill=tk.X, pady=(0, 5))
 
+        # --- Hotkey Reference ---
+        hotkey_frame = ttk.LabelFrame(main_frame, text="Stealth Hotkeys")
+        hotkey_grid = ttk.Frame(hotkey_frame, padding="5")
+        hotkey_grid.pack(fill=tk.X)
+
+        keys = [
+            ("Alt + X", "Silent Full Capture"),
+            ("Alt + Shift + S", "Region OCR Select"),
+            ("Alt + H", "Hide / Show App"),
+            ("Alt + Q", "Toggle Auto-Solve")
+        ]
+
+        for i, (key, desc) in enumerate(keys):
+            row, col = divmod(i, 2)
+            ttk.Label(hotkey_grid, text=key, font=("Segoe UI", 9, "bold")).grid(row=row, column=col*2, sticky=tk.W, padx=(5, 2))
+            ttk.Label(hotkey_grid, text=f": {desc}", font=("Segoe UI", 9)).grid(row=row, column=col*2+1, sticky=tk.W, padx=(0, 15))
+
+        hotkey_frame.pack(fill=tk.X, pady=5)
+
         # Clipboard Text Display
         clip_frame = ttk.LabelFrame(main_frame, text="Clipboard Content")
         # Use scrolledtext for automatic scrollbars
@@ -97,6 +116,9 @@ class SimpleChatApp(tk.Tk):
 
         self.ocr_button = ttk.Button(button_frame, text="Region OCR (Alt+Shift+S)", command=self.open_region_selector, width=25)
         self.ocr_button.pack(side=tk.LEFT, padx=5)
+
+        self.silent_ocr_button = ttk.Button(button_frame, text="Silent Capture (Alt+X)", command=self.trigger_silent_ocr, width=25)
+        self.silent_ocr_button.pack(side=tk.LEFT, padx=5)
 
         self.server_button = ttk.Button(button_frame, text="Start Phone Server", command=self.toggle_server, width=20)
         self.server_button.pack(side=tk.LEFT, padx=5)
@@ -271,6 +293,10 @@ class SimpleChatApp(tk.Tk):
     def open_region_selector(self):
         """Opens the transparent overlay for region selection."""
         RegionSelector(callback=self.controller.process_ocr_region)
+
+    def trigger_silent_ocr(self):
+        """Triggers the silent OCR in the controller."""
+        self.controller.trigger_silent_ocr()
 
     def test_phone_connection(self):
         """Sends a test message to the Flask server to check phone connection."""

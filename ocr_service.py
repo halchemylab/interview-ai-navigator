@@ -28,6 +28,10 @@ class OCRService:
         screenshot = pyautogui.screenshot(region=region)
         return screenshot
 
+    def take_full_screenshot(self):
+        """Takes a full screenshot of the primary monitor."""
+        return pyautogui.screenshot()
+
     def perform_ocr(self, image):
         """Performs OCR on the given PIL image."""
         if self.reader is None:

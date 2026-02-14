@@ -6,12 +6,12 @@ from dotenv import load_dotenv
 class LLMService:
     SYSTEM_PROMPTS = {
         "default": "You are an expert programming assistant. Provide simple commenting, hints, and code response only.",
-        "interview": """You are an expert technical interviewer assistant. 
+        "interview": """You are an expert Data Science and Technical Interview assistant. 
         Structure your response into 3 CLEAR sections:
-        1. LOGIC: A brief, high-level explanation of the approach (1-2 sentences).
-        2. PSEUDOCODE: Simple pseudocode to guide the implementation.
-        3. CODE: The final optimized solution in the requested language.
-        Keep it concise and professional."""
+        1. LOGIC: A brief explanation of the approach. For DS: Mention the specific algorithm, SQL join type, or Pandas method used (1-2 sentences).
+        2. PSEUDOCODE: Simple logic steps to guide the implementation.
+        3. CODE: The optimized solution (Python/Pandas/SQL). 
+        Always aim for memory-efficient and readable code. Keep it concise."""
     }
 
     def __init__(self):

@@ -45,12 +45,32 @@ class InterviewController:
             keyboard.add_hotkey('alt+q', self.toggle_solving_mode_hotkey)
             # Alt+Shift+S: Trigger Region OCR
             keyboard.add_hotkey('alt+shift+s', self.trigger_ocr)
+            # Alt+X: Trigger Silent Full-Screen OCR
+            keyboard.add_hotkey('alt+x', self.trigger_silent_ocr)
             # Alt+H: Toggle window visibility
             if self.visibility_callback:
                 keyboard.add_hotkey('alt+h', self.visibility_callback)
-            logging.info("Global hotkeys (Alt+S, Alt+Q, Alt+Shift+S, Alt+H) registered.")
+            logging.info("Global hotkeys (Alt+S, Alt+Q, Alt+Shift+S, Alt+X, Alt+H) registered.")
         except Exception as e:
             logging.error(f"Failed to register hotkeys: {e}")
+
+    def trigger_silent_ocr(self):
+        """Captures the full screen silently and performs OCR."""
+        logging.info("Silent OCR trigger initiated via hotkey.")
+        self.status_callback("Capturing screen silently...")
+        try:
+            image = self.ocr_service.take_full_screenshot()
+            text = self.ocr_service.perform_ocr(image)
+            
+            if text and len(text) > 1:
+                logging.info(f"Silent OCR Result: {text[:50]}...")
+                self.clipboard_callback(f"[Silent OCR Result]:\n{text}")
+                self._run_query(text, self.llm_service.model)
+            else:
+                self.status_callback("Silent OCR failed to detect text.")
+        except Exception as e:
+            logging.error(f"Error in silent OCR: {e}")
+            self.status_callback(f"OCR Error: {e}")
 
     def trigger_ocr(self):
         """Triggers the region selection for OCR."""
