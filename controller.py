@@ -172,6 +172,9 @@ class InterviewController:
                 self.update_callback(full_response)
                 global_state.update_response(full_response)
                 
+            # Finalize response for history once the stream is complete
+            global_state.finalize_response()
+            
             self.status_callback("API response received.")
             if self.query_enabled:
                 self.monitoring_status_callback("Active", "green")

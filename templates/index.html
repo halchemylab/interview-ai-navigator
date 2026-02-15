@@ -33,20 +33,37 @@
             margin-bottom: 20px;
             color: #4CAF50;
         }
+        h2 {
+            font-size: 1.1rem;
+            margin-top: 20px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
         #response-area {
             background-color: #1e1e1e;
             border-radius: 8px;
             padding: 15px;
             font-size: 0.95rem;
-            border: 1px solid #333;
-            min-height: 200px;
+            border: 1px solid #4CAF50;
+            min-height: 100px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        .history-item {
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 0.9rem;
+            border: 1px solid #333;
+            margin-bottom: 15px;
+            opacity: 0.8;
         }
         /* Markdown Styling */
-        #response-area h2, #response-area h3 { color: #4CAF50; margin-top: 1.5em; }
-        #response-area code { font-family: 'Consolas', 'Monaco', 'Courier New', monospace; background: #2d2d2d; padding: 2px 4px; border-radius: 4px; }
-        #response-area pre { margin: 1em 0; border-radius: 6px; overflow: auto; }
-        #response-area p { margin-bottom: 1em; }
+        #response-area h2, #response-area h3, .history-item h2, .history-item h3 { color: #4CAF50; margin-top: 1.5em; }
+        #response-area code, .history-item code { font-family: 'Consolas', 'Monaco', 'Courier New', monospace; background: #2d2d2d; padding: 2px 4px; border-radius: 4px; }
+        #response-area pre, .history-item pre { margin: 1em 0; border-radius: 6px; overflow: auto; }
+        #response-area p, .history-item p { margin-bottom: 1em; }
 
         .status {
             font-size: 0.8rem;
@@ -56,6 +73,11 @@
             display: flex;
             align-items: center;
             justify-content: flex-end;
+            position: sticky;
+            top: 0;
+            background: #121212;
+            padding: 5px 0;
+            z-index: 100;
         }
         .dot {
             height: 8px;
@@ -71,29 +93,55 @@
 </head>
 <body>
     <div class="container">
-        <h1>AI Navigator</h1>
-        <div id="response-area">Waiting for hints...</div>
         <div class="status">
             <span id="status-dot" class="dot disconnected"></span>
             <span id="status-text">Disconnected</span>
+        </div>
+        <h1>AI Navigator</h1>
+        
+        <h2>Current Hint</h2>
+        <div id="response-area">Waiting for hints...</div>
+        
+        <div id="history-container">
+            <!-- Previous responses will be injected here -->
         </div>
     </div>
 
     <script>
         const responseArea = document.getElementById('response-area');
+        const historyContainer = document.getElementById('history-container');
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
         
-        function updateDisplay(text) {
-            if (!text) return;
-            // Parse markdown and highlight code
-            responseArea.innerHTML = marked.parse(text);
-            Prism.highlightAllUnder(responseArea);
+        let lastHistoryLength = 0;
+
+        function updateDisplay(currentResponse, history) {
+            if (currentResponse) {
+                responseArea.innerHTML = marked.parse(currentResponse);
+            }
+            
+            if (history && history.length !== lastHistoryLength) {
+                // Clear and rebuild history if it changed
+                historyContainer.innerHTML = '<h2>History</h2>';
+                // Show history in reverse order (newest first)
+                for (let i = history.length - 1; i >= 0; i--) {
+                    // Only show in history if it's not the exact same as current
+                    if (history[i] === currentResponse) continue;
+                    
+                    const item = document.createElement('div');
+                    item.className = 'history-item';
+                    item.innerHTML = marked.parse(history[i]);
+                    historyContainer.appendChild(item);
+                }
+                lastHistoryLength = history.length;
+            }
+            
+            Prism.highlightAllUnder(document.body);
         }
 
-        // Populate initial state
-        fetch('/response').then(res => res.json()).then(data => {
-             updateDisplay(data.response);
+        // Initial fetch
+        fetch('/stream').then(res => {
+            // We use the stream for everything now
         }).catch(err => console.error(err));
 
         function connect() {
@@ -107,7 +155,7 @@
 
             eventSource.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                updateDisplay(data.response);
+                updateDisplay(data.response, data.history);
             };
 
             eventSource.onerror = function(err) {

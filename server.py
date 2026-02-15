@@ -23,12 +23,20 @@ def get_response():
     """Flask endpoint to serve the latest response."""
     return jsonify({"response": global_state.latest_response})
 
+@flask_app.route('/history', methods=['GET'])
+def get_history():
+    """Flask endpoint to serve the response history."""
+    return jsonify({"history": global_state.history})
+
 @flask_app.route('/stream')
 def stream():
     """Server-Sent Events endpoint to push updates to the client."""
     def event_stream():
-        # Send the current response immediately upon connection
-        initial_data = json.dumps({"response": global_state.latest_response})
+        # Send the current response and history immediately upon connection
+        initial_data = json.dumps({
+            "response": global_state.latest_response,
+            "history": global_state.history
+        })
         yield f"data: {initial_data}\n\n"
         
         while True:
@@ -36,7 +44,10 @@ def stream():
             global_state.wait_for_update()
             
             # Fetch the new data
-            data = json.dumps({"response": global_state.latest_response})
+            data = json.dumps({
+                "response": global_state.latest_response,
+                "history": global_state.history
+            })
             yield f"data: {data}\n\n"
 
     return Response(event_stream(), mimetype="text/event-stream")
