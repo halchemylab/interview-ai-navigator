@@ -21,8 +21,12 @@ class SimpleChatApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Interview AI Navigator")
-        self.geometry("450x700") # Slightly larger
+        self.geometry("450x750") # Slightly larger for history
         self.attributes('-topmost', True)  # Always on top
+
+        # --- Setup Style ---
+        self.style = ttk.Style()
+        self._setup_dark_theme()
 
         # --- Initialize Controller ---
         self.controller = InterviewController(
@@ -53,6 +57,37 @@ class SimpleChatApp(tk.Tk):
         self.update_status("Ready. Press 'Start Solving Mode' to begin.")
         self.controller.start_monitoring() 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def _setup_dark_theme(self):
+        """Configures a modern dark theme for the application."""
+        self.colors = {
+            'bg': '#121212',
+            'fg': '#e0e0e0',
+            'text_bg': '#1e1e1e',
+            'accent': '#4CAF50',
+            'border': '#333333',
+            'header': '#888888'
+        }
+        
+        self.configure(bg=self.colors['bg'])
+        
+        self.style.theme_use('clam')
+        
+        self.style.configure("TFrame", background=self.colors['bg'])
+        self.style.configure("TLabel", background=self.colors['bg'], foreground=self.colors['fg'], font=("Segoe UI", 10))
+        self.style.configure("TLabelframe", background=self.colors['bg'], foreground=self.colors['header'], bordercolor=self.colors['border'])
+        self.style.configure("TLabelframe.Label", background=self.colors['bg'], foreground=self.colors['accent'], font=("Segoe UI", 10, "bold"))
+        
+        self.style.configure("TButton", 
+                            background=self.colors['accent'], 
+                            foreground="white", 
+                            font=("Segoe UI", 9, "bold"),
+                            borderwidth=0)
+        self.style.map("TButton", 
+                      background=[('active', '#45a049'), ('pressed', '#3d8b40')])
+        
+        self.style.configure("TCombobox", fieldbackground=self.colors['text_bg'], background=self.colors['bg'], foreground=self.colors['fg'])
+        self.style.configure("TCheckbutton", background=self.colors['bg'], foreground=self.colors['fg'])
 
     def _create_widgets(self):
         """Creates and arranges the UI elements."""
@@ -99,13 +134,17 @@ class SimpleChatApp(tk.Tk):
         # Clipboard Text Display
         clip_frame = ttk.LabelFrame(main_frame, text="Clipboard Content")
         # Use scrolledtext for automatic scrollbars
-        self.clipboard_text = scrolledtext.ScrolledText(clip_frame, height=8, wrap=tk.WORD, state="disabled", relief=tk.FLAT, bg=self.cget('bg'))
+        self.clipboard_text = scrolledtext.ScrolledText(clip_frame, height=8, wrap=tk.WORD, state="disabled", 
+                                                        relief=tk.FLAT, bg=self.colors['text_bg'], 
+                                                        fg=self.colors['fg'], insertbackground=self.colors['fg'])
         self.clipboard_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         clip_frame.pack(fill=tk.BOTH, pady=5)
 
         # ChatGPT Response Display
         resp_frame = ttk.LabelFrame(main_frame, text="Coding Hints / Response")
-        self.response_text = scrolledtext.ScrolledText(resp_frame, height=15, wrap=tk.WORD, state="disabled", relief=tk.FLAT, bg=self.cget('bg'))
+        self.response_text = scrolledtext.ScrolledText(resp_frame, height=15, wrap=tk.WORD, state="disabled", 
+                                                       relief=tk.FLAT, bg=self.colors['text_bg'], 
+                                                       fg=self.colors['fg'], insertbackground=self.colors['fg'])
         self.response_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         resp_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
@@ -190,8 +229,8 @@ class SimpleChatApp(tk.Tk):
         text_widget.delete("1.0", tk.END)
         
         # Define tags for code blocks
-        text_widget.tag_config("code_block", background="#f0f0f0", font=("Consolas", 10))
-        text_widget.tag_config("bold", font=("Segoe UI", 10, "bold"))
+        text_widget.tag_config("code_block", background="#2d2d2d", font=("Consolas", 10))
+        text_widget.tag_config("bold", font=("Segoe UI", 10, "bold"), foreground="#4CAF50")
         
         # Simple regex to split content into code blocks and normal text
         parts = re.split(r'(```[\s\S]*?```)', content)
@@ -234,15 +273,15 @@ class SimpleChatApp(tk.Tk):
         # Tokenize
         tokens = list(lexer.get_tokens(code))
         
-        # Map pygments token types to colors
+        # Map pygments token types to colors (Dark mode friendly)
         color_map = {
-            'Token.Keyword': '#0000ff',
-            'Token.Name.Function': '#000080',
-            'Token.Name.Class': '#000080',
-            'Token.String': '#a31515',
-            'Token.Comment': '#008000',
-            'Token.Operator': '#000000',
-            'Token.Number': '#098658',
+            'Token.Keyword': '#569cd6',
+            'Token.Name.Function': '#dcdcaa',
+            'Token.Name.Class': '#4ec9b0',
+            'Token.String': '#ce9178',
+            'Token.Comment': '#6a9955',
+            'Token.Operator': '#d4d4d4',
+            'Token.Number': '#b5cea8',
         }
 
         current_pos = start_index
