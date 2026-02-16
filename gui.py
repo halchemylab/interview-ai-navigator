@@ -10,6 +10,7 @@ import server
 from llm_service import LLMService
 from controller import InterviewController # Import the new controller
 from ocr_service import RegionSelector
+from state import global_state
 import qrcode
 from PIL import Image, ImageTk # Import Pillow modules
 import re
@@ -21,7 +22,7 @@ class SimpleChatApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Interview AI Navigator")
-        self.geometry("450x750") # Slightly larger for history
+        self.geometry("450x800") # Slightly larger for history
         self.attributes('-topmost', True)  # Always on top
 
         # --- Setup Style ---
@@ -46,6 +47,7 @@ class SimpleChatApp(tk.Tk):
 
         # --- Window State ---
         self.is_hidden = False
+        self.history_index = -1 # -1 means viewing current/latest stream
 
         # --- OpenAI Model ---
         self.model_var = tk.StringVar(value="gpt-4o-mini") # Default model
@@ -84,7 +86,8 @@ class SimpleChatApp(tk.Tk):
                             font=("Segoe UI", 9, "bold"),
                             borderwidth=0)
         self.style.map("TButton", 
-                      background=[('active', '#45a049'), ('pressed', '#3d8b40')])
+                      background=[('active', '#45a049'), ('pressed', '#3d8b40')],
+                      foreground=[('disabled', '#888888')])
         
         self.style.configure("TCombobox", fieldbackground=self.colors['text_bg'], background=self.colors['bg'], foreground=self.colors['fg'])
         self.style.configure("TCheckbutton", background=self.colors['bg'], foreground=self.colors['fg'])
@@ -142,6 +145,20 @@ class SimpleChatApp(tk.Tk):
 
         # ChatGPT Response Display
         resp_frame = ttk.LabelFrame(main_frame, text="Coding Hints / Response")
+        
+        # History Navigation Bar
+        nav_frame = ttk.Frame(resp_frame)
+        nav_frame.pack(fill=tk.X, padx=5, pady=(2, 0))
+        
+        self.prev_btn = ttk.Button(nav_frame, text="< Prev", width=8, command=self.view_previous_history)
+        self.prev_btn.pack(side=tk.LEFT)
+        
+        self.history_label = ttk.Label(nav_frame, text="Latest Hint", font=("Segoe UI", 9, "bold"), foreground=self.colors['accent'])
+        self.history_label.pack(side=tk.LEFT, expand=True)
+        
+        self.next_btn = ttk.Button(nav_frame, text="Next >", width=8, command=self.view_next_history, state="disabled")
+        self.next_btn.pack(side=tk.RIGHT)
+
         self.response_text = scrolledtext.ScrolledText(resp_frame, height=15, wrap=tk.WORD, state="disabled", 
                                                        relief=tk.FLAT, bg=self.colors['text_bg'], 
                                                        fg=self.colors['fg'], insertbackground=self.colors['fg'])
@@ -325,9 +342,57 @@ class SimpleChatApp(tk.Tk):
 
     def update_response_display(self, text):
         """Updates the response display area and the shared state on the main thread."""
+        self.history_index = -1 # Reset to current when a new response starts streaming
+        self._update_nav_buttons()
         self.set_response_loading_state(False) # Clear loading message
         self.update_text_widget(self.response_text, text)
 
+    def view_previous_history(self):
+        """Shows the previous response from history."""
+        history = global_state.history
+        if not history:
+            return
+
+        if self.history_index == -1:
+            self.history_index = len(history) - 1
+        elif self.history_index > 0:
+            self.history_index -= 1
+        
+        self._show_historical_response()
+
+    def view_next_history(self):
+        """Shows the next response from history, or returns to current."""
+        history = global_state.history
+        if self.history_index == -1:
+            return
+
+        if self.history_index < len(history) - 1:
+            self.history_index += 1
+            self._show_historical_response()
+        else:
+            self.history_index = -1
+            self.update_response_display(global_state.latest_response)
+
+    def _show_historical_response(self):
+        """Displays the response at the current history index."""
+        history = global_state.history
+        if 0 <= self.history_index < len(history):
+            content = history[self.history_index]
+            self.update_text_widget(self.response_text, content)
+            self._update_nav_buttons()
+
+    def _update_nav_buttons(self):
+        """Updates the navigation button states and label."""
+        history = global_state.history
+        
+        if self.history_index == -1:
+            self.history_label.config(text="Latest Hint", foreground=self.colors['accent'])
+            self.next_btn.config(state="disabled")
+            self.prev_btn.config(state="normal" if history else "disabled")
+        else:
+            self.history_label.config(text=f"History: {self.history_index + 1} / {len(history)}", foreground="orange")
+            self.next_btn.config(state="normal")
+            self.prev_btn.config(state="normal" if self.history_index > 0 else "disabled")
 
     def open_region_selector(self):
         """Opens the transparent overlay for region selection."""
