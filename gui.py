@@ -111,6 +111,13 @@ class SimpleChatApp(tk.Tk):
         
         model_frame.pack(pady=(0, 10), anchor='w')
 
+        # --- Opacity Control ---
+        opacity_frame = ttk.Frame(main_frame)
+        ttk.Label(opacity_frame, text="Window Opacity:", font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(0, 10))
+        self.opacity_scale = ttk.Scale(opacity_frame, from_=0.2, to=1.0, value=1.0, orient=tk.HORIZONTAL, command=self.update_opacity, length=150)
+        self.opacity_scale.pack(side=tk.LEFT)
+        opacity_frame.pack(fill=tk.X, pady=(0, 10))
+
         # Monitoring Indicator
         self.monitoring_indicator = ttk.Label(main_frame, text="Monitoring: Inactive", anchor=tk.W, font=("Segoe UI", 9, "italic"))
         self.monitoring_indicator.pack(fill=tk.X, pady=(0, 5))
@@ -224,6 +231,10 @@ class SimpleChatApp(tk.Tk):
             self.qr_code_label.config(image='')
             self.qr_photo = None
     
+    def update_opacity(self, value):
+        """Updates the window opacity based on the scale value."""
+        self.attributes('-alpha', float(value))
+
     def on_model_selected(self, event):
         """Updates the LLM service model when a new model is selected in the combobox."""
         selected_model = self.model_var.get()
