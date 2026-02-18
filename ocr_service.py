@@ -10,6 +10,29 @@ class OCRService:
     def __init__(self):
         self.reader = None
         self._initialize_reader()
+    
+    def _validate_image(self, image):
+        """Validates that image is a valid PIL Image.
+        
+        Args:
+            image: Object to validate as PIL Image
+            
+        Returns:
+            bool: True if image is valid, False otherwise
+        """
+        if image is None:
+            logging.warning("Image is None")
+            return False
+        
+        if not isinstance(image, Image.Image):
+            logging.warning(f"Invalid image type: {type(image)}")
+            return False
+        
+        if image.size == (0, 0) or image.width == 0 or image.height == 0:
+            logging.warning(f"Image has zero dimensions: {image.size}")
+            return False
+        
+        return True
 
     def _initialize_reader(self):
         """Initializes the EasyOCR reader in a separate thread to avoid blocking."""
@@ -33,20 +56,49 @@ class OCRService:
         return pyautogui.screenshot()
 
     def perform_ocr(self, image):
-        """Performs OCR on the given PIL image."""
+        """Performs OCR on the given PIL image.
+        
+        Args:
+            image: PIL Image object to process
+            
+        Returns:
+            str: Extracted text or error message
+        """
         if self.reader is None:
             return "OCR Engine still initializing. Please wait a moment..."
+        
+        # Validate image
+        if not self._validate_image(image):
+            return "Error: Invalid or empty image provided."
         
         try:
             # Convert PIL image to numpy array for EasyOCR
             img_np = np.array(image)
+            
+            # Validate numpy array
+            if img_np.size == 0:
+                return "Error: Image is empty."
+            
             results = self.reader.readtext(img_np)
-            # Combine results into a single string
-            text = " ".join([res[1] for res in results])
+            
+            # Validate OCR results
+            if not results:
+                return ""  # Empty result, no text detected
+            
+            # Extract text with confidence filtering
+            text_parts = []
+            for res in results:
+                if len(res) >= 2:
+                    text_parts.append(res[1])
+            
+            text = " ".join(text_parts).strip()
             return text
+        except ValueError as e:
+            logging.error(f"OCR Validation Error: {e}")
+            return f"OCR Error: {str(e)[:100]}"
         except Exception as e:
             logging.error(f"OCR Error: {e}")
-            return f"OCR Error: {e}"
+            return f"OCR Error: {str(e)[:100]}"
 
 class RegionSelector(tk.Toplevel):
     def __init__(self, callback):

@@ -83,9 +83,27 @@ class LLMService:
             return f"Error querying API: {error_msg}"
 
     def query_api_stream(self, prompt, model="gpt-4o-mini"):
-        """Queries the OpenAI API and yields response chunks."""
+        """Queries the OpenAI API and yields response chunks.
+        
+        Args:
+            prompt: The user prompt to send to the API
+            model: The model to use (default: gpt-4o-mini)
+            
+        Yields:
+            str: Chunks of the API response
+        """
         if not self.client:
             yield "Error: OpenAI Client not initialized. Check API Key."
+            return
+        
+        # Validate input prompt
+        if not prompt or not isinstance(prompt, str) or len(prompt.strip()) < 2:
+            yield "Error: Invalid prompt provided. Please provide meaningful input."
+            return
+        
+        # Validate model name
+        if not model or not isinstance(model, str):
+            yield "Error: Invalid model specified."
             return
 
         logging.info(f"Sending streaming query to model: {model}")
@@ -101,10 +119,36 @@ class LLMService:
                 temperature=0.6,
                 stream=True
             )
+            
+            chunk_count = 0
             for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta_content = chunk.choices[0].delta.content
+                    if delta_content:
+                        chunk_count += 1
+                        yield delta_content
+            
+            if chunk_count == 0:
+                yield "(No response from API)"
+                logging.warning("API stream returned no content chunks")
 
+        except openai.APIConnectionError as e:
+            error_msg = f"Connection Error: Could not reach OpenAI servers. {str(e)[:80]}"
+            logging.error(error_msg)
+            yield f"Error: {error_msg}"
+        except openai.RateLimitError as e:
+            error_msg = "Error: Rate limit exceeded. Please wait a moment and try again."
+            logging.error(f"Rate limit error: {e}")
+            yield error_msg
+        except openai.AuthenticationError as e:
+            error_msg = "Error: Invalid API Key. Please check your configuration."
+            logging.error(f"Authentication error: {e}")
+            yield error_msg
+        except openai.APIStatusError as e:
+            error_msg = f"API Error (Status {e.status_code}): {str(e.message)[:80]}"
+            logging.error(error_msg)
+            yield f"Error: {error_msg}"
         except Exception as e:
+            error_msg = f"Unexpected error: {type(e).__name__}: {str(e)[:80]}"
             logging.exception("An unexpected error occurred during streaming API call")
-            yield f"Error querying API: {str(e)}"
+            yield f"Error: {error_msg}"

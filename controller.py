@@ -62,15 +62,17 @@ class InterviewController:
             image = self.ocr_service.take_full_screenshot()
             text = self.ocr_service.perform_ocr(image)
             
-            if text and len(text) > 1:
-                logging.info(f"Silent OCR Result: {text[:50]}...")
-                self.clipboard_callback(f"[Silent OCR Result]:\n{text}")
-                self._run_query(text, self.llm_service.model)
-            else:
-                self.status_callback("Silent OCR failed to detect text.")
+            # Validate OCR result
+            if not self._validate_input(text):
+                self.status_callback("OCR did not detect any valid text.")
+                return
+            
+            logging.info(f"Silent OCR Result: {text[:50]}...")
+            self.clipboard_callback(f"[Silent OCR Result]:\n{text}")
+            self._run_query(text, self.llm_service.model)
         except Exception as e:
             logging.error(f"Error in silent OCR: {e}")
-            self.status_callback(f"OCR Error: {e}")
+            self.status_callback(f"OCR Error: {str(e)[:100]}")
 
     def trigger_ocr(self):
         """Triggers the region selection for OCR."""
@@ -83,27 +85,42 @@ class InterviewController:
         """Processes the selected region for OCR and runs query."""
         self.status_callback("Capturing and performing OCR...")
         try:
+            # Validate region tuple
+            if not self._validate_region(region):
+                self.status_callback("Invalid region selected.")
+                return
+            
             image = self.ocr_service.take_screenshot_region(region)
             text = self.ocr_service.perform_ocr(image)
             
-            if text and len(text) > 1:
-                logging.info(f"OCR Result: {text[:50]}...")
-                self.clipboard_callback(f"[OCR Result]:\n{text}")
-                self._run_query(text, self.llm_service.model)
-            else:
-                self.status_callback("OCR failed to detect text.")
+            # Validate OCR result
+            if not self._validate_input(text):
+                self.status_callback("OCR did not detect any valid text.")
+                return
+            
+            logging.info(f"OCR Result: {text[:50]}...")
+            self.clipboard_callback(f"[OCR Result]:\n{text}")
+            self._run_query(text, self.llm_service.model)
         except Exception as e:
             logging.error(f"Error in process_ocr_region: {e}")
-            self.status_callback(f"OCR Error: {e}")
+            self.status_callback(f"OCR Error: {str(e)[:100]}")
 
     def force_solve(self):
         """Manually triggers a solve from current clipboard."""
-        current_content = pyperclip.paste()
-        if current_content and len(current_content) > 1:
+        try:
+            current_content = pyperclip.paste()
+            # Validate clipboard content
+            if not self._validate_input(current_content):
+                self.status_callback("Clipboard is empty or contains only whitespace.")
+                return
+            
             logging.info("Manual solve triggered via hotkey.")
             self.status_callback("Manual solve triggered...")
             self.clipboard_callback(current_content)
             self._run_query(current_content, self.llm_service.model)
+        except Exception as e:
+            logging.error(f"Error in force_solve: {e}")
+            self.status_callback(f"Error reading clipboard: {str(e)[:100]}")
 
     def toggle_solving_mode_hotkey(self):
         """Hotkey wrapper for toggling solving mode."""
@@ -132,9 +149,10 @@ class InterviewController:
         while not self.stop_event.is_set():
             try:
                 current_content = pyperclip.paste()
+                # Validate clipboard content before processing
                 if (current_content is not None and 
                     current_content != self.last_clipboard_content and 
-                    len(current_content) > 1):
+                    self._validate_input(current_content)):
                     
                     self.last_clipboard_content = current_content
                     self.clipboard_callback(current_content)
@@ -160,14 +178,26 @@ class InterviewController:
 
     def _run_query(self, text, model):
         """Executes the API query with streaming."""
+        # Validate model selection
+        if not model or not isinstance(model, str):
+            self.status_callback("Invalid model selection.")
+            self.response_loading_callback(False)
+            return
+        
         self.status_callback("Querying OpenAI API (streaming)...")
         self.monitoring_status_callback("Querying AI...", "blue")
         self.response_loading_callback(True)
         
         full_response = ""
         try:
-            for chunk in self.llm_service.query_api_stream(text, model):
-                full_response += chunk
+            stream_generator = self.llm_service.query_api_stream(text, model)
+            if stream_generator is None:
+                raise ValueError("Failed to initialize API stream.")
+            
+            for chunk in stream_generator:
+                if chunk is None:
+                    continue
+                full_response += str(chunk)
                 # Update both UI and global state for phone display
                 self.update_callback(full_response)
                 global_state.update_response(full_response)
@@ -180,9 +210,16 @@ class InterviewController:
                 self.monitoring_status_callback("Active", "green")
             else:
                 self.monitoring_status_callback("Paused", "gray")
+        except ValueError as e:
+            logging.exception("Validation error in query thread")
+            error_msg = f"Configuration Error: {str(e)[:100]}"
+            self.update_callback(error_msg)
+            global_state.update_response(error_msg)
+            self.status_callback("Configuration error.")
+            self.monitoring_status_callback("Error, monitoring active", "red")
         except Exception as e:
             logging.exception("Error in query thread")
-            error_msg = f"Error: {e}"
+            error_msg = f"API Error: {str(e)[:100]}"
             self.update_callback(error_msg)
             global_state.update_response(error_msg)
             self.status_callback("API Error.")
@@ -228,6 +265,49 @@ class InterviewController:
             self.qr_code_callback(server_url) # Display QR code when server starts
             return True, server_url
     
+    def _validate_input(self, text):
+        """Validates input text for processing.
+        
+        Args:
+            text: The text to validate
+            
+        Returns:
+            bool: True if text is valid, False otherwise
+        """
+        if text is None:
+            return False
+        if not isinstance(text, str):
+            return False
+        if len(text.strip()) < 2:
+            return False
+        return True
+    
+    def _validate_region(self, region):
+        """Validates OCR region selection.
+        
+        Args:
+            region: Tuple of (x, y, width, height)
+            
+        Returns:
+            bool: True if region is valid, False otherwise
+        """
+        if not isinstance(region, tuple) or len(region) != 4:
+            logging.warning(f"Invalid region format: {region}")
+            return False
+        
+        x, y, width, height = region
+        # Validate all coordinates are non-negative integers
+        if not all(isinstance(coord, (int, float)) and coord >= 0 for coord in region):
+            logging.warning(f"Invalid region coordinates: {region}")
+            return False
+        
+        # Minimum region size (5x5 pixels)
+        if width < 5 or height < 5:
+            logging.warning(f"Region too small: {width}x{height}")
+            return False
+        
+        return True
+
     def send_test_message_to_server(self):
         """Sends a test message to the Flask server to verify connection."""
         if not self.server_running or not self.server_ip or not self.server_port:
@@ -235,17 +315,25 @@ class InterviewController:
             return False
         
         try:
+            # Validate server configuration
+            if not isinstance(self.server_port, int) or self.server_port <= 0 or self.server_port > 65535:
+                logging.error(f"Invalid server port: {self.server_port}")
+                return False
+            
             test_url = f"http://{self.server_ip}:{self.server_port}/test_connection"
-            response = requests.post(test_url, json={"message": "Test Connection from Desktop App"})
+            response = requests.post(test_url, json={"message": "Test Connection from Desktop App"}, timeout=5)
             response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
             logging.info(f"Test message sent successfully to {test_url}. Response: {response.json()}")
             return True
         except requests.exceptions.ConnectionError as e:
             logging.error(f"Connection error while sending test message: {e}")
             return False
-        except requests.exceptions.Timeout:
-            logging.error("Timeout error while sending test message.")
+        except requests.exceptions.Timeout as e:
+            logging.error(f"Timeout error while sending test message (5s): {e}")
             return False
         except requests.exceptions.RequestException as e:
             logging.error(f"Error sending test message to Flask server: {e}")
+            return False
+        except Exception as e:
+            logging.error(f"Unexpected error during test connection: {e}")
             return False
