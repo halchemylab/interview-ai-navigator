@@ -5,6 +5,8 @@ class AppState:
     def __init__(self):
         self._latest_response = "No response yet."
         self._history = []  # List of strings for previous full responses
+        self._active_ocr_region = None # (x, y, w, h) tuple for active OCR monitoring
+        self._last_ocr_content = ""    # Last text extracted from the active OCR region
         self._condition = threading.Condition()
 
     @property
@@ -16,6 +18,28 @@ class AppState:
     def history(self):
         with self._condition:
             return list(self._history)
+
+    @property
+    def active_ocr_region(self):
+        with self._condition:
+            return self._active_ocr_region
+
+    @active_ocr_region.setter
+    def active_ocr_region(self, region):
+        with self._condition:
+            self._active_ocr_region = region
+            self._condition.notify_all()
+
+    @property
+    def last_ocr_content(self):
+        with self._condition:
+            return self._last_ocr_content
+
+    @last_ocr_content.setter
+    def last_ocr_content(self, content):
+        with self._condition:
+            self._last_ocr_content = content
+            self._condition.notify_all()
 
     def update_response(self, new_response):
         """Updates the current response and notifies waiting threads."""

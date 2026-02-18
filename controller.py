@@ -9,7 +9,7 @@ import server
 import requests # Import requests for HTTP calls
 
 class InterviewController:
-    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback, visibility_callback=None, solving_mode_callback=None, ocr_callback=None):
+    def __init__(self, update_callback, clipboard_callback, status_callback, monitoring_status_callback, response_loading_callback, qr_code_callback, visibility_callback=None, solving_mode_callback=None, ocr_callback=None, ocr_monitoring_status_callback=None):
         self.llm_service = LLMService()
         self.ocr_service = OCRService()
         self.update_callback = update_callback        # To update response UI
@@ -21,6 +21,7 @@ class InterviewController:
         self.visibility_callback = visibility_callback # To toggle window visibility
         self.solving_mode_callback = solving_mode_callback # To sync UI button
         self.ocr_callback = ocr_callback              # To trigger region selection
+        self.ocr_monitoring_status_callback = ocr_monitoring_status_callback # New: To update OCR monitoring status
         
         self.last_clipboard_content = ""
         self.query_enabled = False
@@ -33,6 +34,11 @@ class InterviewController:
         self.monitor_thread = None
         self.stop_event = threading.Event()
         self._debounce_timer = None
+        
+        # New: OCR monitoring related
+        self.ocr_monitor_thread = None
+        self.ocr_stop_event = threading.Event()
+        self.is_ocr_monitoring_active = False # New state for OCR monitoring
         
         self._setup_hotkeys()
 
@@ -53,6 +59,67 @@ class InterviewController:
             logging.info("Global hotkeys (Alt+S, Alt+Q, Alt+Shift+S, Alt+X, Alt+H) registered.")
         except Exception as e:
             logging.error(f"Failed to register hotkeys: {e}")
+
+    def start_ocr_monitoring(self, region):
+        """Starts continuous OCR monitoring of the specified region."""
+        if self.ocr_monitor_thread and self.ocr_monitor_thread.is_alive():
+            self.stop_ocr_monitoring() # Stop existing if running
+            
+        global_state.active_ocr_region = region
+        self.is_ocr_monitoring_active = True
+        self.ocr_stop_event.clear()
+        
+        # Perform an initial OCR and set last_ocr_content
+        try:
+            image = self.ocr_service.take_screenshot_region(region)
+            text = self.ocr_service.perform_ocr(image)
+            global_state.last_ocr_content = text if text else ""
+            logging.info(f"Initial OCR content for monitoring: {global_state.last_ocr_content[:50]}...")
+        except Exception as e:
+            logging.error(f"Error performing initial OCR for monitoring: {e}")
+            global_state.last_ocr_content = ""
+            
+        self.ocr_monitor_thread = threading.Thread(target=self._ocr_monitor_loop, daemon=True)
+        self.ocr_monitor_thread.start()
+        self.ocr_monitoring_status_callback("Active", "green")
+        self.status_callback(f"Continuous OCR monitoring started for region: {region}")
+
+    def stop_ocr_monitoring(self):
+        """Stops continuous OCR monitoring."""
+        if self.ocr_monitor_thread and self.ocr_monitor_thread.is_alive():
+            self.ocr_stop_event.set()
+            self.ocr_monitor_thread.join(timeout=1) # Wait for thread to finish
+            self.ocr_monitor_thread = None
+        
+        global_state.active_ocr_region = None
+        global_state.last_ocr_content = ""
+        self.is_ocr_monitoring_active = False
+        self.ocr_monitoring_status_callback("Inactive", "red")
+        self.status_callback("Continuous OCR monitoring stopped.")
+
+    def _ocr_monitor_loop(self):
+        """Background loop to continuously check the active OCR region."""
+        while not self.ocr_stop_event.is_set():
+            if global_state.active_ocr_region:
+                try:
+                    region = global_state.active_ocr_region
+                    image = self.ocr_service.take_screenshot_region(region)
+                    current_ocr_content = self.ocr_service.perform_ocr(image)
+
+                    if current_ocr_content and current_ocr_content != global_state.last_ocr_content:
+                        global_state.last_ocr_content = current_ocr_content
+                        logging.info(f"New OCR content detected: {current_ocr_content[:50]}...")
+                        self.clipboard_callback(f"[OCR Monitor Result]:\n{current_ocr_content}") # Update UI with OCR content
+                        
+                        if self.query_enabled:
+                            self.status_callback("OCR content changed. Debouncing...")
+                            self.ocr_monitoring_status_callback("OCR detected, processing...", "orange")
+                            self._schedule_query(current_ocr_content)
+                except Exception as e:
+                    logging.error(f"Error in OCR monitor loop: {e}")
+                    self.status_callback(f"OCR Monitor Error: {e}")
+            
+            self.ocr_stop_event.wait(self.polling_rate_ms / 1000.0)
 
     def trigger_silent_ocr(self):
         """Captures the full screen silently and performs OCR."""
@@ -90,6 +157,7 @@ class InterviewController:
                 logging.info(f"OCR Result: {text[:50]}...")
                 self.clipboard_callback(f"[OCR Result]:\n{text}")
                 self._run_query(text, self.llm_service.model)
+                self.start_ocr_monitoring(region) # Start continuous monitoring after initial processing
             else:
                 self.status_callback("OCR failed to detect text.")
         except Exception as e:
@@ -121,11 +189,14 @@ class InterviewController:
         self.monitoring_status_callback("Active", "green") # Initial status
 
     def stop_monitoring(self):
-        """Stops the clipboard monitoring thread."""
+        """Stops the clipboard monitoring thread and OCR monitoring thread."""
         self.stop_event.set()
         if self._debounce_timer:
             self._debounce_timer.cancel()
         self.monitoring_status_callback("Inactive", "red")
+        
+        # Stop OCR monitoring as well
+        self.stop_ocr_monitoring()
 
     def _monitor_loop(self):
         """Background loop to check clipboard."""
@@ -194,8 +265,14 @@ class InterviewController:
         self.query_enabled = not self.query_enabled
         if self.query_enabled:
             self.monitoring_status_callback("Active", "green")
+            # If OCR monitoring is active, reflect that in its status
+            if self.is_ocr_monitoring_active:
+                self.ocr_monitoring_status_callback("Active", "green")
         else:
             self.monitoring_status_callback("Paused", "gray")
+            # If OCR monitoring is active, reflect that in its status
+            if self.is_ocr_monitoring_active:
+                self.ocr_monitoring_status_callback("Paused", "gray")
         
         if self.solving_mode_callback:
             self.solving_mode_callback(self.query_enabled)
