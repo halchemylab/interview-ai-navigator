@@ -1,6 +1,6 @@
 import pytest
-from server import flask_app
-from state import global_state
+from src.services.server import flask_app
+from src.core.state import global_state
 
 @pytest.fixture
 def client():

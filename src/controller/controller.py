@@ -2,10 +2,10 @@ import threading
 import logging
 import pyperclip
 import keyboard
-from state import global_state
-from llm_service import LLMService
-from ocr_service import OCRService
-import server
+from src.core.state import global_state
+from src.services.llm_service import LLMService
+from src.services.ocr_service import OCRService
+from src.services import server
 import requests # Import requests for HTTP calls
 
 class InterviewController:
@@ -335,7 +335,7 @@ class InterviewController:
         else:
             server.start_server(host, port)
             self.server_running = True
-            from utils import get_local_ip
+            from src.core.utils import get_local_ip
             self.server_ip = get_local_ip()
             self.server_port = port
             server_url = f"http://{self.server_ip}:{self.server_port}/"

@@ -5,12 +5,12 @@ from tkinter import ttk, scrolledtext, messagebox
 import pyperclip
 import logging
 from dotenv import load_dotenv, set_key
-from utils import get_local_ip
-import server
-from llm_service import LLMService
-from controller import InterviewController # Import the new controller
-from ocr_service import RegionSelector
-from state import global_state
+from src.core.utils import get_local_ip
+from src.services import server
+from src.services.llm_service import LLMService
+from src.controller.controller import InterviewController # Import the new controller
+from src.services.ocr_service import RegionSelector
+from src.core.state import global_state
 import qrcode
 from PIL import Image, ImageTk # Import Pillow modules
 import re

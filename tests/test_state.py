@@ -1,5 +1,5 @@
 import unittest
-from state import AppState, global_state
+from src.core.state import AppState, global_state
 
 class TestAppState(unittest.TestCase):
     def test_initial_state(self):

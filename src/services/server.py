@@ -2,8 +2,8 @@ import threading
 import logging
 import json
 from flask import Flask, jsonify, render_template, Response, request
-from state import global_state
-from utils import get_local_ip
+from src.core.state import global_state
+from src.core.utils import get_local_ip
 
 from werkzeug.serving import make_server
 

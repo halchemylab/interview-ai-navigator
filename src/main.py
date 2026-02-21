@@ -1,7 +1,7 @@
 import logging
 import tkinter as tk
 from tkinter import messagebox
-from gui import SimpleChatApp
+from src.gui.gui import SimpleChatApp
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

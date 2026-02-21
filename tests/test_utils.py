@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import socket
-from utils import get_local_ip
+from src.core.utils import get_local_ip
 
 class TestUtils(unittest.TestCase):
     @patch('socket.socket')
