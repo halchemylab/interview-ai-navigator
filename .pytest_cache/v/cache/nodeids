@@ -1,0 +1,12 @@
+[
+  "tests/test_llm_service.py::test_init_failure",
+  "tests/test_llm_service.py::test_init_success",
+  "tests/test_llm_service.py::test_query_api_no_client",
+  "tests/test_llm_service.py::test_query_api_success",
+  "tests/test_server.py::test_get_response_default",
+  "tests/test_server.py::test_get_response_updated",
+  "tests/test_state.py::TestAppState::test_global_state_exists",
+  "tests/test_state.py::TestAppState::test_initial_state",
+  "tests/test_utils.py::TestUtils::test_get_local_ip_failure",
+  "tests/test_utils.py::TestUtils::test_get_local_ip_success"
+]

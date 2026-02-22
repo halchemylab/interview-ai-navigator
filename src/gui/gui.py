@@ -9,7 +9,6 @@ from src.core.utils import get_local_ip
 from src.services import server
 from src.services.llm_service import LLMService
 from src.controller.controller import InterviewController # Import the new controller
-from src.services.ocr_service import RegionSelector
 from src.core.state import global_state
 import qrcode
 from PIL import Image, ImageTk # Import Pillow modules
@@ -38,9 +37,7 @@ class SimpleChatApp(tk.Tk):
             response_loading_callback=lambda is_loading: self.after(0, self.set_response_loading_state, is_loading),
             qr_code_callback=lambda url: self.after(0, self.update_qr_code, url),
             visibility_callback=lambda: self.after(0, self.toggle_visibility),
-            solving_mode_callback=lambda enabled: self.after(0, self.update_solving_mode_ui, enabled),
-            ocr_callback=lambda: self.after(0, self.open_region_selector),
-            ocr_monitoring_status_callback=lambda status, color: self.after(0, self.update_ocr_monitoring_indicator, status, color) # NEW
+            solving_mode_callback=lambda enabled: self.after(0, self.update_solving_mode_ui, enabled)
         )
         
         if not self.controller.llm_service.api_key:
@@ -123,19 +120,12 @@ class SimpleChatApp(tk.Tk):
         self.monitoring_indicator = ttk.Label(main_frame, text="Monitoring: Inactive", anchor=tk.W, font=("Segoe UI", 9, "italic"))
         self.monitoring_indicator.pack(fill=tk.X, pady=(0, 5))
 
-        # New: OCR Monitoring Indicator
-        self.ocr_monitoring_indicator = ttk.Label(main_frame, text="OCR Monitor: Inactive", anchor=tk.W, font=("Segoe UI", 9, "italic"))
-        self.ocr_monitoring_indicator.pack(fill=tk.X, pady=(0, 5))
-
-
         # --- Hotkey Reference ---
         hotkey_frame = ttk.LabelFrame(main_frame, text="Stealth Hotkeys")
         hotkey_grid = ttk.Frame(hotkey_frame, padding="5")
         hotkey_grid.pack(fill=tk.X)
 
         keys = [
-            ("Alt + X", "Silent Full Capture"),
-            ("Alt + Shift + S", "Region OCR Select"),
             ("Alt + H", "Hide / Show App"),
             ("Alt + Q", "Toggle Auto-Solve")
         ]
@@ -182,16 +172,6 @@ class SimpleChatApp(tk.Tk):
         button_frame = ttk.Frame(main_frame)
         self.toggle_button = ttk.Button(button_frame, text="Start Solving Mode", command=self.toggle_query, width=20)
         self.toggle_button.pack(side=tk.LEFT, padx=5)
-
-        self.ocr_button = ttk.Button(button_frame, text="Region OCR (Alt+Shift+S)", command=self.open_region_selector, width=25)
-        self.ocr_button.pack(side=tk.LEFT, padx=5)
-
-        # New: Stop OCR Monitor Button
-        self.stop_ocr_monitor_button = ttk.Button(button_frame, text="Stop OCR Monitor", command=self.controller.stop_ocr_monitoring, width=20)
-        self.stop_ocr_monitor_button.pack(side=tk.LEFT, padx=5)
-
-        self.silent_ocr_button = ttk.Button(button_frame, text="Silent Capture (Alt+X)", command=self.trigger_silent_ocr, width=25)
-        self.silent_ocr_button.pack(side=tk.LEFT, padx=5)
 
         self.server_button = ttk.Button(button_frame, text="Start Phone Server", command=self.toggle_server, width=20)
         self.server_button.pack(side=tk.LEFT, padx=5)
@@ -255,10 +235,6 @@ class SimpleChatApp(tk.Tk):
     def update_monitoring_indicator(self, status, color="black"):
         """Updates the monitoring indicator label."""
         self.monitoring_indicator.config(text=f"Monitoring: {status}", foreground=color)
-        
-    def update_ocr_monitoring_indicator(self, status, color="black"):
-        """Updates the OCR monitoring indicator label."""
-        self.ocr_monitoring_indicator.config(text=f"OCR Monitor: {status}", foreground=color)
         
     def update_status(self, message):
         """Updates the status bar text."""
@@ -418,14 +394,6 @@ class SimpleChatApp(tk.Tk):
             self.history_label.config(text=f"History: {self.history_index + 1} / {len(history)}", foreground="orange")
             self.next_btn.config(state="normal")
             self.prev_btn.config(state="normal" if self.history_index > 0 else "disabled")
-
-    def open_region_selector(self):
-        """Opens the transparent overlay for region selection."""
-        RegionSelector(callback=self.controller.process_ocr_region)
-
-    def trigger_silent_ocr(self):
-        """Triggers the silent OCR in the controller."""
-        self.controller.trigger_silent_ocr()
 
     def test_phone_connection(self):
         """Sends a test message to the Flask server to check phone connection."""
